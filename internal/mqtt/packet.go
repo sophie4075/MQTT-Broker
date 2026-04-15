@@ -74,7 +74,7 @@ type Connack struct {
 	ReturnCode     byte
 }
 
-type topicSubscription struct {
+type TopicSubscription struct {
 	Topic string
 	Qos   byte
 }
@@ -88,7 +88,7 @@ type Publish struct {
 type Subscribe struct {
 	Header   FixedHeader
 	PacketID uint16
-	Topics   []topicSubscription
+	Topics   []TopicSubscription
 }
 
 type Unsubscribe struct {
@@ -106,4 +106,16 @@ type Suback struct {
 type Ack struct {
 	Header   FixedHeader
 	PacketID uint16
+}
+
+type Pingreq struct {
+	Header FixedHeader
+}
+
+type Pingresp struct {
+	Header FixedHeader
+}
+
+type Disconnect struct {
+	Header FixedHeader
 }
