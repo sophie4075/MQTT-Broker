@@ -107,15 +107,3 @@ type Ack struct {
 	Header   FixedHeader
 	PacketID uint16
 }
-
-type Pingreq struct {
-	Header FixedHeader
-}
-
-type Pingresp struct {
-	Header FixedHeader
-}
-
-type Disconnect struct {
-	Header FixedHeader
-}

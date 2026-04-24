@@ -59,15 +59,12 @@ func ReadPacket(r io.Reader) (Packet, error) {
 	case UNSUBSCRIBE:
 		return decodeUnsubscribe(header, body)
 	case PUBACK, PUBREC, PUBREL, PUBCOMP, UNSUBACK:
-		// TODO
-	case PINGREQ:
-		// TODO
-	case DISCONNECT:
-		// TODO
+		return decodeAck(header, body)
+	case PINGREQ, PINGRESP, DISCONNECT:
+		return &Ack{Header: header}, nil
 	default:
 		return nil, fmt.Errorf("unknown packet type: %d", header.PacketType)
 	}
-	return nil, nil
 }
 
 func decodeConnect(header FixedHeader, body []byte) (*Connect, error) {
@@ -198,6 +195,16 @@ func decodeUnsubscribe(header FixedHeader, body []byte) (*Unsubscribe, error) {
 	}
 
 	return pkt, nil
+}
+
+func decodeAck(header FixedHeader, body []byte) (*Ack, error) {
+	if len(body) < 2 {
+		return nil, fmt.Errorf("ack packet too short")
+	}
+	return &Ack{
+		Header:   header,
+		PacketID: binary.BigEndian.Uint16(body[:2]),
+	}, nil
 }
 
 func readString(buf []byte, offset int) (string, int) {
