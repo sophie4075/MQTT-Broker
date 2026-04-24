@@ -57,7 +57,7 @@ func ReadPacket(r io.Reader) (Packet, error) {
 	case SUBSCRIBE:
 		return decodeSubscribe(header, body)
 	case UNSUBSCRIBE:
-		// TODO
+		return decodeUnsubscribe(header, body)
 	case PUBACK, PUBREC, PUBREL, PUBCOMP, UNSUBACK:
 		// TODO
 	case PINGREQ:
@@ -166,6 +166,37 @@ func decodeSubscribe(header FixedHeader, body []byte) (*Subscribe, error) {
 			Qos:   qos,
 		})
 	}
+	return pkt, nil
+}
+
+func decodeUnsubscribe(header FixedHeader, body []byte) (*Unsubscribe, error) {
+	pkt := &Unsubscribe{Header: header}
+	offset := 0
+
+	if len(body) < 2 {
+		return nil, fmt.Errorf("unsubscribe packet too short")
+	}
+	pkt.PacketID = binary.BigEndian.Uint16(body[offset:])
+	offset += 2
+
+	for offset < len(body) {
+		if offset+2 > len(body) {
+			return nil, fmt.Errorf("truncated topic length")
+		}
+		topicLen := int(binary.BigEndian.Uint16(body[offset:]))
+		offset += 2
+
+		if offset+topicLen > len(body) {
+			return nil, fmt.Errorf("truncated topic")
+		}
+		topic := string(body[offset : offset+topicLen])
+		offset += topicLen
+
+		offset++
+
+		pkt.Topics = append(pkt.Topics, topic)
+	}
+
 	return pkt, nil
 }
 

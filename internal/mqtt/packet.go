@@ -43,7 +43,7 @@ type FixedHeader struct {
 	RemainingLength int
 }
 
-type connectPayload struct {
+type ConnectPayload struct {
 	KeepAlive uint16
 	ClientId  string
 	WillTopic string
@@ -52,7 +52,7 @@ type connectPayload struct {
 	Password  []byte
 }
 
-type connectFlags struct {
+type ConnectFlags struct {
 	Reserved     int
 	CleanSession bool
 	WillFlag     bool
@@ -64,8 +64,8 @@ type connectFlags struct {
 
 type Connect struct {
 	Header  FixedHeader
-	Bits    connectFlags
-	Payload connectPayload
+	Bits    ConnectFlags
+	Payload ConnectPayload
 }
 
 type Connack struct {
