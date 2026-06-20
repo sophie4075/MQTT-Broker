@@ -223,3 +223,119 @@ func TestDecodeSubscribeMultipleTopics(t *testing.T) {
 		}
 	}
 }
+
+func TestReadPacketUnsubscribeSingle(t *testing.T) {
+	var body bytes.Buffer
+
+	body.Write([]byte{0x00, 0x05})
+	body.Write([]byte{0x00, 0x03, 'a', '/', 'b'})
+
+	raw := buildPacket(0xA2, body.Bytes())
+	pkt, err := ReadPacket(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	unsub, ok := pkt.(*Unsubscribe)
+	if !ok {
+		t.Fatalf("expected *Unsubscribe, got %T", pkt)
+	}
+	if unsub.PacketID != 5 {
+		t.Errorf("PacketID = %d, want 5", unsub.PacketID)
+	}
+	if len(unsub.Topics) != 1 || unsub.Topics[0] != "a/b" {
+		t.Errorf("Topics = %v, want [a/b]", unsub.Topics)
+	}
+}
+
+func TestReadPacketUnsubscribeMultiple(t *testing.T) {
+	var body bytes.Buffer
+
+	body.Write([]byte{0x00, 0x03})
+	body.Write([]byte{0x00, 0x05, 'h', 'e', 'l', 'l', 'o'})
+	body.Write([]byte{0x00, 0x05, 'w', 'o', 'r', 'l', 'd'})
+
+	raw := buildPacket(0xA2, body.Bytes())
+	pkt, err := ReadPacket(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	unsub := pkt.(*Unsubscribe)
+	if len(unsub.Topics) != 2 {
+		t.Fatalf("got %d topics, want 2", len(unsub.Topics))
+	}
+	if unsub.Topics[0] != "hello" || unsub.Topics[1] != "world" {
+		t.Errorf("Topics = %v, want [hello world]", unsub.Topics)
+	}
+}
+
+func TestReadPacketAckTypes(t *testing.T) {
+	tests := []struct {
+		name       string
+		headerByte byte
+		wantType   byte
+	}{
+		{"PUBACK", 0x40, PUBACK},
+		{"PUBREC", 0x50, PUBREC},
+		{"PUBREL", 0x62, PUBREL},
+		{"PUBCOMP", 0x70, PUBCOMP},
+		{"UNSUBACK", 0xB0, UNSUBACK},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := []byte{0x00, 0x0A}
+
+			raw := buildPacket(tt.headerByte, body)
+			pkt, err := ReadPacket(bytes.NewReader(raw))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			ack, ok := pkt.(*Ack)
+			if !ok {
+				t.Fatalf("expected *Ack, got %T", pkt)
+			}
+			if ack.Type() != tt.wantType {
+				t.Errorf("Type() = %d, want %d", ack.Type(), tt.wantType)
+			}
+			if ack.PacketID != 10 {
+				t.Errorf("PacketID = %d, want 10", ack.PacketID)
+			}
+		})
+	}
+}
+
+func TestReadPacketHeaderOnly(t *testing.T) {
+	tests := []struct {
+		name       string
+		headerByte byte
+		wantType   byte
+	}{
+		{"PINGREQ", 0xC0, PINGREQ},
+		{"PINGRESP", 0xD0, PINGRESP},
+		{"DISCONNECT", 0xE0, DISCONNECT},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			raw := buildPacket(tt.headerByte, []byte{})
+			pkt, err := ReadPacket(bytes.NewReader(raw))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			ack, ok := pkt.(*Ack)
+			if !ok {
+				t.Fatalf("expected *Ack, got %T", pkt)
+			}
+			if ack.Type() != tt.wantType {
+				t.Errorf("Type() = %d, want %d", ack.Type(), tt.wantType)
+			}
+			if ack.PacketID != 0 {
+				t.Errorf("PacketID = %d, want 0", ack.PacketID)
+			}
+		})
+	}
+}

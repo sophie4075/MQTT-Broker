@@ -32,10 +32,8 @@ func ReadPacket(r io.Reader) (Packet, error) {
 	}
 
 	header := FixedHeader{
-		PacketType: (headerByte[0] >> 4) & 0x0F,
-		Dup:        (headerByte[0]>>3)&0x01 == 1,
-		Qos:        (headerByte[0] >> 1) & 0x03,
-		Retain:     headerByte[0]&0x01 == 1,
+		PacketType: PacketType(headerByte[0] >> 4),
+		Flags:      headerByte[0] & 0x0F,
 	}
 
 	remaining, err := DecodeLength(r)
@@ -60,16 +58,19 @@ func ReadPacket(r io.Reader) (Packet, error) {
 		return decodeUnsubscribe(header, body)
 	case PUBACK, PUBREC, PUBREL, PUBCOMP, UNSUBACK:
 		return decodeAck(header, body)
-	case PINGREQ, PINGRESP, DISCONNECT:
-		return &Ack{Header: header}, nil
+	case PINGREQ:
+		return &Pingreq{}, nil
+	case PINGRESP:
+		return &Pingresp{}, nil
+	case DISCONNECT:
+		return &Disconnect{}, nil
 	default:
 		return nil, fmt.Errorf("unknown packet type: %d", header.PacketType)
 	}
 }
 
 func decodeConnect(header FixedHeader, body []byte) (*Connect, error) {
-
-	pkt := &Connect{Header: header}
+	pkt := &Connect{}
 	offset := 0
 
 	protoLen := int(binary.BigEndian.Uint16(body[offset:]))
@@ -79,31 +80,31 @@ func decodeConnect(header FixedHeader, body []byte) (*Connect, error) {
 		return nil, fmt.Errorf("malformed connect packet")
 	}
 
-	_ = body[offset]
+	_ = body[offset] // Protocol Level
 	offset++
 
 	flags := body[offset]
 	offset++
-	pkt.Bits.CleanSession = (flags>>1)&0x01 == 1
-	pkt.Bits.WillFlag = (flags>>2)&0x01 == 1
-	pkt.Bits.WillQos = (flags >> 3) & 0x03
-	pkt.Bits.WillRetain = (flags>>5)&0x01 == 1
-	pkt.Bits.PasswordFlag = (flags>>6)&0x01 == 1
-	pkt.Bits.UsernameFlag = (flags>>7)&0x01 == 1
+	pkt.Flags.CleanSession = (flags>>1)&0x01 == 1
+	pkt.Flags.WillFlag = (flags>>2)&0x01 == 1
+	pkt.Flags.WillQoS = QoS((flags >> 3) & 0x03)
+	pkt.Flags.WillRetain = (flags>>5)&0x01 == 1
+	pkt.Flags.PasswordFlag = (flags>>6)&0x01 == 1
+	pkt.Flags.UsernameFlag = (flags>>7)&0x01 == 1
 
-	pkt.Payload.KeepAlive = binary.BigEndian.Uint16(body[offset:])
+	pkt.KeepAlive = binary.BigEndian.Uint16(body[offset:])
 	offset += 2
 
-	pkt.Payload.ClientId, offset = readString(body, offset)
+	pkt.Payload.ClientID, offset = readString(body, offset)
 
-	if pkt.Bits.WillFlag {
+	if pkt.Flags.WillFlag {
 		pkt.Payload.WillTopic, offset = readString(body, offset)
 		pkt.Payload.WillMsg, offset = readBytes(body, offset)
 	}
-	if pkt.Bits.UsernameFlag {
+	if pkt.Flags.UsernameFlag {
 		pkt.Payload.Username, offset = readString(body, offset)
 	}
-	if pkt.Bits.PasswordFlag {
+	if pkt.Flags.PasswordFlag {
 		pkt.Payload.Password, offset = readBytes(body, offset)
 	}
 
@@ -111,29 +112,31 @@ func decodeConnect(header FixedHeader, body []byte) (*Connect, error) {
 }
 
 func decodePublish(header FixedHeader, body []byte) (*Publish, error) {
-	pkt := &Publish{Header: header}
+	pkt := &Publish{
+		Dup:    (header.Flags>>3)&0x01 == 1,
+		QoS:    QoS((header.Flags >> 1) & 0x03),
+		Retain: header.Flags&0x01 == 1,
+	}
+	if pkt.QoS == 3 {
+		return nil, fmt.Errorf("invalid QoS 3 in PUBLISH")
+	}
 	offset := 0
 
 	pkt.TopicName, offset = readString(body, offset)
-	topicLen := 2 + len(pkt.TopicName)
 
-	messageLen := len(body)
-
-	if header.Qos > 0 {
+	if pkt.QoS > 0 {
 		pkt.PacketID = binary.BigEndian.Uint16(body[offset:])
 		offset += 2
-		messageLen -= 2
 	}
 
-	messageLen -= topicLen
-	pkt.Payload = make([]byte, messageLen)
-	copy(pkt.Payload, body[offset:offset+messageLen])
+	pkt.Payload = make([]byte, len(body)-offset)
+	copy(pkt.Payload, body[offset:])
 
 	return pkt, nil
 }
 
 func decodeSubscribe(header FixedHeader, body []byte) (*Subscribe, error) {
-	pkt := &Subscribe{Header: header}
+	pkt := &Subscribe{}
 	offset := 0
 
 	if len(body) < 2 {
@@ -160,14 +163,14 @@ func decodeSubscribe(header FixedHeader, body []byte) (*Subscribe, error) {
 
 		pkt.Topics = append(pkt.Topics, TopicSubscription{
 			Topic: topic,
-			Qos:   qos,
+			QoS:   QoS(qos),
 		})
 	}
 	return pkt, nil
 }
 
 func decodeUnsubscribe(header FixedHeader, body []byte) (*Unsubscribe, error) {
-	pkt := &Unsubscribe{Header: header}
+	pkt := &Unsubscribe{}
 	offset := 0
 
 	if len(body) < 2 {
@@ -189,8 +192,6 @@ func decodeUnsubscribe(header FixedHeader, body []byte) (*Unsubscribe, error) {
 		topic := string(body[offset : offset+topicLen])
 		offset += topicLen
 
-		offset++
-
 		pkt.Topics = append(pkt.Topics, topic)
 	}
 
@@ -202,7 +203,7 @@ func decodeAck(header FixedHeader, body []byte) (*Ack, error) {
 		return nil, fmt.Errorf("ack packet too short")
 	}
 	return &Ack{
-		Header:   header,
+		Kind:     header.PacketType,
 		PacketID: binary.BigEndian.Uint16(body[:2]),
 	}, nil
 }
