@@ -6,6 +6,34 @@ import (
 	"io"
 )
 
+// reservedFlags defines the expected value of the lower 4 bits (bits 3–0)
+// of the first byte in the MQTT Fixed Header for each Control Packet type.
+//
+// These bits are packet-type specific and may either:
+//   - be fixed to a defined value (as specified by the MQTT specification), or
+//   - be reserved for future use.
+//
+// The receiver MUST validate these flags when parsing an incoming packet.
+// If an invalid value is detected, the connection MUST be terminated
+// according to the MQTT specification.
+//
+// see MQTT Version 3.1.1, Section 2.2.2 (Fixed Header Flags)
+var reservedFlags = map[PacketType]byte{
+	CONNECT:     0x00,
+	CONNACK:     0x00,
+	PUBACK:      0x00,
+	PUBREC:      0x00,
+	PUBREL:      0x02,
+	PUBCOMP:     0x00,
+	SUBSCRIBE:   0x02,
+	SUBACK:      0x00,
+	UNSUBSCRIBE: 0x02,
+	UNSUBACK:    0x00,
+	PINGREQ:     0x00,
+	PINGRESP:    0x00,
+	DISCONNECT:  0x00,
+}
+
 func DecodeLength(r io.Reader) (int, error) {
 	multiplier := 1
 	value := 0
@@ -34,6 +62,10 @@ func ReadPacket(r io.Reader) (Packet, error) {
 	header := FixedHeader{
 		PacketType: PacketType(headerByte[0] >> 4),
 		Flags:      headerByte[0] & 0x0F,
+	}
+
+	if err := validateFlags(header); err != nil {
+		return nil, err
 	}
 
 	remaining, err := DecodeLength(r)
@@ -124,8 +156,14 @@ func decodePublish(header FixedHeader, body []byte) (*Publish, error) {
 
 	pkt.TopicName, offset = readString(body, offset)
 
-	if pkt.QoS > 0 {
-		pkt.PacketID = binary.BigEndian.Uint16(body[offset:])
+	atMostOnce := pkt.QoS == 0
+
+	if !atMostOnce && len(body[offset:]) < 2 {
+		return nil, fmt.Errorf("missing packet identifier")
+	}
+
+	if !atMostOnce {
+		*pkt.PacketID = binary.BigEndian.Uint16(body[offset:])
 		offset += 2
 	}
 
@@ -221,4 +259,15 @@ func readBytes(buf []byte, offset int) ([]byte, int) {
 	b := make([]byte, length)
 	copy(b, buf[offset:offset+length])
 	return b, offset + length
+}
+
+func validateFlags(h FixedHeader) error {
+	validFlag, hasReservedFlags := reservedFlags[h.PacketType]
+	if !hasReservedFlags {
+		return nil // packet type is pub or is unkown, is handled by ReadPacket
+	}
+	if h.Flags != validFlag {
+		return fmt.Errorf("invalid reserved flags 0x%X for packet type %d", h.Flags, h.PacketType)
+	}
+	return nil
 }
