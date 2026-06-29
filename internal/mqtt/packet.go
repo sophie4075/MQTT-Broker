@@ -99,7 +99,7 @@ type Connect struct {
 	Payload   ConnectPayload
 }
 
-// Connack is sent by the server in response to a CONNECT Packet received
+// Connack is sent by the network in response to a CONNECT Packet received
 type Connack struct {
 	SessionPresent bool
 	ReturnCode     byte

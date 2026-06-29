@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"strings"
+	"unicode/utf8"
 )
 
 // reservedFlags defines the expected value of the lower 4 bits (bits 3–0)
@@ -81,13 +83,13 @@ func ReadPacket(r io.Reader) (Packet, error) {
 
 	switch header.PacketType {
 	case CONNECT:
-		return decodeConnect(header, body)
+		return decodeConnect(body)
 	case PUBLISH:
 		return decodePublish(header, body)
 	case SUBSCRIBE:
-		return decodeSubscribe(header, body)
+		return decodeSubscribe(body)
 	case UNSUBSCRIBE:
-		return decodeUnsubscribe(header, body)
+		return decodeUnsubscribe(body)
 	case PUBACK, PUBREC, PUBREL, PUBCOMP, UNSUBACK:
 		return decodeAck(header, body)
 	case PINGREQ:
@@ -101,22 +103,45 @@ func ReadPacket(r io.Reader) (Packet, error) {
 	}
 }
 
-func decodeConnect(header FixedHeader, body []byte) (*Connect, error) {
+func decodeConnect(body []byte) (*Connect, error) {
+	var err error
+	var protoLen uint16
 	pkt := &Connect{}
 	offset := 0
 
-	protoLen := int(binary.BigEndian.Uint16(body[offset:]))
-	offset += 2 + protoLen
+	// Sticky-error wrappers: once err is set, further reads do nothing,
+	// so the optional payload fields below stay free of repeated err checks.
+	readStr := func(dst *string) {
+		if err != nil {
+			return
+		}
+		*dst, offset, err = readString(body, offset)
+	}
+	readBin := func(dst *[]byte) {
+		if err != nil {
+			return
+		}
+		*dst, offset, err = readBytes(body, offset)
+	}
 
+	// Protocol Name: length-prefixed, content is skipped (not stored).
+	protoLen, offset, err = readUint16(body, offset)
+	if err != nil {
+		return nil, fmt.Errorf("malformed connect: %w", err)
+	}
+	offset += int(protoLen)
+
+	// Protocol Level (1 byte) + Connect Flags (1 byte) must still fit.
 	if offset+2 > len(body) {
 		return nil, fmt.Errorf("malformed connect packet")
 	}
-
-	_ = body[offset] // Protocol Level
-	offset++
+	offset++ // Ignore Protocol Level
 
 	flags := body[offset]
 	offset++
+	if flags&0x01 != 0 {
+		return nil, fmt.Errorf("connect reserved flag must be 0")
+	}
 	pkt.Flags.CleanSession = (flags>>1)&0x01 == 1
 	pkt.Flags.WillFlag = (flags>>2)&0x01 == 1
 	pkt.Flags.WillQoS = QoS((flags >> 3) & 0x03)
@@ -124,20 +149,30 @@ func decodeConnect(header FixedHeader, body []byte) (*Connect, error) {
 	pkt.Flags.PasswordFlag = (flags>>6)&0x01 == 1
 	pkt.Flags.UsernameFlag = (flags>>7)&0x01 == 1
 
-	pkt.KeepAlive = binary.BigEndian.Uint16(body[offset:])
-	offset += 2
+	if err := validateConnectFlags(pkt.Flags); err != nil {
+		return nil, err
+	}
 
-	pkt.Payload.ClientID, offset = readString(body, offset)
+	pkt.KeepAlive, offset, err = readUint16(body, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	readStr(&pkt.Payload.ClientID)
 
 	if pkt.Flags.WillFlag {
-		pkt.Payload.WillTopic, offset = readString(body, offset)
-		pkt.Payload.WillMsg, offset = readBytes(body, offset)
+		readStr(&pkt.Payload.WillTopic)
+		readBin(&pkt.Payload.WillMsg)
 	}
 	if pkt.Flags.UsernameFlag {
-		pkt.Payload.Username, offset = readString(body, offset)
+		readStr(&pkt.Payload.Username)
 	}
 	if pkt.Flags.PasswordFlag {
-		pkt.Payload.Password, offset = readBytes(body, offset)
+		readBin(&pkt.Payload.Password)
+	}
+
+	if err != nil {
+		return nil, err
 	}
 
 	return pkt, nil
@@ -154,17 +189,20 @@ func decodePublish(header FixedHeader, body []byte) (*Publish, error) {
 	}
 	offset := 0
 
-	pkt.TopicName, offset = readString(body, offset)
-
-	atMostOnce := pkt.QoS == 0
-
-	if !atMostOnce && len(body[offset:]) < 2 {
-		return nil, fmt.Errorf("missing packet identifier")
+	var err error
+	pkt.TopicName, offset, err = readString(body, offset)
+	if err != nil {
+		return nil, err
 	}
 
-	if !atMostOnce {
-		*pkt.PacketID = binary.BigEndian.Uint16(body[offset:])
-		offset += 2
+	// Packet Identifier only present for QoS > 0.
+	if pkt.QoS > 0 {
+		var id uint16
+		id, offset, err = readUint16(body, offset)
+		if err != nil {
+			return nil, fmt.Errorf("missing packet identifier: %w", err)
+		}
+		pkt.PacketID = &id
 	}
 
 	pkt.Payload = make([]byte, len(body)-offset)
@@ -173,29 +211,26 @@ func decodePublish(header FixedHeader, body []byte) (*Publish, error) {
 	return pkt, nil
 }
 
-func decodeSubscribe(header FixedHeader, body []byte) (*Subscribe, error) {
+func decodeSubscribe(body []byte) (*Subscribe, error) {
 	pkt := &Subscribe{}
 	offset := 0
 
-	if len(body) < 2 {
-		return nil, fmt.Errorf("subscribe packet too short")
+	var err error
+	pkt.PacketID, offset, err = readUint16(body, offset)
+	if err != nil {
+		return nil, fmt.Errorf("subscribe packet too short: %w", err)
 	}
-	pkt.PacketID = binary.BigEndian.Uint16(body[offset:])
-	offset += 2
 
 	for offset < len(body) {
-		if offset+2 > len(body) {
-			return nil, fmt.Errorf("truncated topic length")
+		var topic string
+		topic, offset, err = readString(body, offset)
+		if err != nil {
+			return nil, err
 		}
-		topicLen := int(binary.BigEndian.Uint16(body[offset:]))
-		offset += 2
 
-		if offset+topicLen+1 > len(body) {
-			return nil, fmt.Errorf("truncated topic or qos")
+		if offset+1 > len(body) {
+			return nil, fmt.Errorf("truncated qos")
 		}
-		topic := string(body[offset : offset+topicLen])
-		offset += topicLen
-
 		qos := body[offset]
 		offset++
 
@@ -204,70 +239,125 @@ func decodeSubscribe(header FixedHeader, body []byte) (*Subscribe, error) {
 			QoS:   QoS(qos),
 		})
 	}
+
+	// MUST contain at least one Topic Filter.
+	if len(pkt.Topics) == 0 {
+		return nil, fmt.Errorf("subscribe with no topics")
+	}
 	return pkt, nil
 }
 
-func decodeUnsubscribe(header FixedHeader, body []byte) (*Unsubscribe, error) {
+func decodeUnsubscribe(body []byte) (*Unsubscribe, error) {
 	pkt := &Unsubscribe{}
 	offset := 0
 
-	if len(body) < 2 {
-		return nil, fmt.Errorf("unsubscribe packet too short")
+	var err error
+	pkt.PacketID, offset, err = readUint16(body, offset)
+	if err != nil {
+		return nil, fmt.Errorf("unsubscribe packet too short: %w", err)
 	}
-	pkt.PacketID = binary.BigEndian.Uint16(body[offset:])
-	offset += 2
 
 	for offset < len(body) {
-		if offset+2 > len(body) {
-			return nil, fmt.Errorf("truncated topic length")
+		var topic string
+		topic, offset, err = readString(body, offset)
+		if err != nil {
+			return nil, err
 		}
-		topicLen := int(binary.BigEndian.Uint16(body[offset:]))
-		offset += 2
-
-		if offset+topicLen > len(body) {
-			return nil, fmt.Errorf("truncated topic")
-		}
-		topic := string(body[offset : offset+topicLen])
-		offset += topicLen
-
 		pkt.Topics = append(pkt.Topics, topic)
 	}
 
+	// MUST contain at least one Topic Filter.
+	if len(pkt.Topics) == 0 {
+		return nil, fmt.Errorf("unsubscribe with no topics")
+	}
 	return pkt, nil
 }
 
 func decodeAck(header FixedHeader, body []byte) (*Ack, error) {
-	if len(body) < 2 {
-		return nil, fmt.Errorf("ack packet too short")
+	id, _, err := readUint16(body, 0)
+	if err != nil {
+		return nil, fmt.Errorf("ack packet too short: %w", err)
 	}
 	return &Ack{
 		Kind:     header.PacketType,
-		PacketID: binary.BigEndian.Uint16(body[:2]),
+		PacketID: id,
 	}, nil
 }
 
-func readString(buf []byte, offset int) (string, int) {
-	length := int(binary.BigEndian.Uint16(buf[offset:]))
-	offset += 2
-	s := string(buf[offset : offset+length])
-	return s, offset + length
+// readUint16 reads 2 big-endian bytes and returns the new offset.
+func readUint16(buf []byte, offset int) (uint16, int, error) {
+	if offset+2 > len(buf) {
+		return 0, offset, fmt.Errorf("truncated uint16")
+	}
+	return binary.BigEndian.Uint16(buf[offset:]), offset + 2, nil
 }
 
-func readBytes(buf []byte, offset int) ([]byte, int) {
-	length := int(binary.BigEndian.Uint16(buf[offset:]))
-	offset += 2
+// readString reads a length-prefixed UTF-8 string and validates it.
+func readString(buf []byte, offset int) (string, int, error) {
+	length, offset, err := readUint16(buf, offset)
+	if err != nil {
+		return "", offset, fmt.Errorf("truncated string length: %w", err)
+	}
+	if offset+int(length) > len(buf) {
+		return "", offset, fmt.Errorf("truncated string")
+	}
+	s := string(buf[offset : offset+int(length)])
+	if err := validateUTF8(s); err != nil {
+		return "", offset, err
+	}
+	return s, offset + int(length), nil
+}
+
+// readBytes reads a length-prefixed binary field
+func readBytes(buf []byte, offset int) ([]byte, int, error) {
+	length, offset, err := readUint16(buf, offset)
+	if err != nil {
+		return nil, offset, fmt.Errorf("truncated bytes length: %w", err)
+	}
+	if offset+int(length) > len(buf) {
+		return nil, offset, fmt.Errorf("truncated bytes")
+	}
 	b := make([]byte, length)
-	copy(b, buf[offset:offset+length])
-	return b, offset + length
+	copy(b, buf[offset:offset+int(length)])
+	return b, offset + int(length), nil
 }
 
 func validateFlags(h FixedHeader) error {
 	validFlag, hasReservedFlags := reservedFlags[h.PacketType]
 	if !hasReservedFlags {
-		return nil // packet type is pub or is unkown, is handled by ReadPacket
+		return nil // packet type is pub or is unknown, is handled by ReadPacket
 	}
 	if h.Flags != validFlag {
 		return fmt.Errorf("invalid reserved flags 0x%X for packet type %d", h.Flags, h.PacketType)
+	}
+	return nil
+}
+
+func validateConnectFlags(f ConnectFlags) error {
+	if !f.WillFlag {
+		if f.WillQoS != 0 {
+			return fmt.Errorf("will qos must be 0 when will flag is unset")
+		}
+		if f.WillRetain {
+			return fmt.Errorf("will retain must be 0 when will flag is unset")
+		}
+	} else if f.WillQoS > 2 {
+		return fmt.Errorf("will qos must be 0, 1 or 2, got %d", f.WillQoS)
+	}
+
+	if !f.UsernameFlag && f.PasswordFlag {
+		return fmt.Errorf("password flag must be 0 when username flag is unset")
+	}
+
+	return nil
+}
+
+func validateUTF8(s string) error {
+	if !utf8.ValidString(s) {
+		return fmt.Errorf("ill-formed UTF-8 string")
+	}
+	if strings.IndexByte(s, 0x00) != -1 {
+		return fmt.Errorf("UTF-8 string contains U+0000")
 	}
 	return nil
 }
