@@ -195,6 +195,11 @@ func decodePublish(header FixedHeader, body []byte) (*Publish, error) {
 		return nil, err
 	}
 
+	err = validateTopicName(pkt.TopicName)
+	if err != nil {
+		return nil, err
+	}
+
 	// Packet Identifier only present for QoS > 0.
 	if pkt.QoS > 0 {
 		var id uint16
@@ -358,6 +363,16 @@ func validateUTF8(s string) error {
 	}
 	if strings.IndexByte(s, 0x00) != -1 {
 		return fmt.Errorf("UTF-8 string contains U+0000")
+	}
+	return nil
+}
+
+func validateTopicName(s string) error {
+	if s == "" {
+		return fmt.Errorf("the topic name cannot be empty")
+	}
+	if strings.Contains(s, "+") || strings.Contains(s, ".") {
+		return fmt.Errorf("the topic name must contain wildcard characters")
 	}
 	return nil
 }
