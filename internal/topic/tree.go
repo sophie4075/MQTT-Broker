@@ -56,3 +56,12 @@ func (t *Tree) Unsubscribe(filter string, clientID string) {
 	}
 	delete(cur.subs, clientID)
 }
+func (t *Tree) Match(topicName string) map[string]mqtt.QoS {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	parts := strings.Split(topicName, "/")
+	results := make(map[string]mqtt.QoS)
+	t.root.collect(parts, 0, results)
+	return results
+}
