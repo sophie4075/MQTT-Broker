@@ -58,6 +58,10 @@ func (s *Server) handleConn(conn net.Conn) {
 		conn: conn,
 	}
 
+	defer func() {
+		s.Broker.RemoveClient(client)
+	}()
+
 	for {
 		pkt, err := mqtt.ReadPacket(r)
 		if err != nil {
@@ -68,10 +72,10 @@ func (s *Server) handleConn(conn net.Conn) {
 		}
 
 		if err := s.Broker.HandlePacket(client, pkt); err != nil {
-			if !errors.Is(err, errClientDisconnect) {
+			if errors.Is(err, errClientDisconnect) {
 				return
 			}
-			log.Printf("broker error for %s: %v", addr, err)
+			log.Printf("connection closed for %s: %v", addr, err)
 			return
 		}
 	}

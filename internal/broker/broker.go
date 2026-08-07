@@ -13,6 +13,7 @@ import (
 
 // errClientDisconnect signals an orderly DISCONNECT.
 var errClientDisconnect = errors.New("client disconnected")
+var errIdentifierRejected = errors.New("identifier rejected")
 
 // Broker owns MQTT state (e.g: clients, topics, subscriptions).
 type Broker struct {
@@ -65,6 +66,19 @@ func (b *Broker) HandlePacket(c *Client, pkt mqtt.Packet) error {
 	case *mqtt.Connect:
 		// TODO: enforce that CONNECT is the first packet, reject duplicates,
 		// validate/assign the client ID, and track the session.
+		c.id = p.Payload.ClientID
+		// see MQTT 3.1.3.1
+		if c.id == "" {
+			if err := c.write(func(w io.Writer) error {
+				return mqtt.WriteConnack(w, false, 0x02)
+			}); err != nil {
+				return err
+			}
+			log.Println("Connection Refused, identifier rejected as it is empty")
+			return errIdentifierRejected
+		}
+
+		b.AddClient(c)
 		log.Printf("mqtt: CONNECT id=%q clean=%v keepalive=%d",
 			p.Payload.ClientID, p.Flags.CleanSession, p.KeepAlive)
 		return c.write(func(w io.Writer) error {

@@ -371,8 +371,8 @@ func validateTopicName(s string) error {
 	if s == "" {
 		return fmt.Errorf("the topic name cannot be empty")
 	}
-	if strings.Contains(s, "+") || strings.Contains(s, ".") {
-		return fmt.Errorf("the topic name must contain wildcard characters")
+	if strings.Contains(s, "+") || strings.Contains(s, "#") {
+		return fmt.Errorf("the topic name must not contain wildcard characters")
 	}
 	return nil
 }
