@@ -13,9 +13,7 @@ type node struct {
 func (n *node) collect(parts []string, i int, results map[string]mqtt.QoS) {
 	// every level of the topic name is consumed
 	if i == len(parts) {
-		for id, qos := range n.subs {
-			results[id] = qos
-		}
+		mergeSubs(results, n.subs)
 		return
 	}
 	level := parts[i]
@@ -29,9 +27,17 @@ func (n *node) collect(parts []string, i int, results map[string]mqtt.QoS) {
 		}
 
 		if child, ok := n.children["#"]; ok {
-			for id, qos := range child.subs {
-				results[id] = qos
-			}
+			mergeSubs(results, child.subs)
+		}
+	}
+}
+
+// mergeSubs copies src into dst, keeping the higher QoS whenever a clientID
+// already has an entry. See MQTT-3.3.5-1.
+func mergeSubs(dst, src map[string]mqtt.QoS) {
+	for id, qos := range src {
+		if existing, ok := dst[id]; !ok || qos > existing {
+			dst[id] = qos
 		}
 	}
 }
