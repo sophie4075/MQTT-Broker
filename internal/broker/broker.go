@@ -1,6 +1,7 @@
 package broker
 
 import (
+	"BA-Broker/internal/topic"
 	"errors"
 	"fmt"
 	"io"
@@ -19,11 +20,13 @@ var errIdentifierRejected = errors.New("identifier rejected")
 type Broker struct {
 	mu      sync.RWMutex
 	clients map[string]*Client
+	topics  *topic.Tree
 }
 
 func New() *Broker {
 	return &Broker{
 		clients: make(map[string]*Client),
+		topics:  topic.NewTree(),
 	}
 }
 
@@ -112,9 +115,24 @@ func (b *Broker) handlePublish(c *Client, p *mqtt.Publish) error {
 }
 
 func (b *Broker) handleSubscribe(c *Client, p *mqtt.Subscribe) error {
-	// TODO: subscription registry + SUBACK
-	log.Printf("SUBSCRIBE from %q", c.id)
-	return nil
+	log.Printf("SUBSCRIBE Received from %q", c.id)
+	// See [MQTT-3.9.3-2]
+	rc := make([]byte, 0, len(p.Topics))
+	for _, t := range p.Topics {
+		err := b.topics.Subscribe(t.Topic, c.id, t.QoS)
+		if err != nil {
+			log.Printf("Error subscribing to topic %q: %v", t.Topic, err)
+			// failure
+			rc = append(rc, 0x80)
+			continue
+		}
+		// 0x00, 0x01, or 0x02
+		rc = append(rc, byte(t.QoS))
+	}
+	// TODO make sure to double check 3.8.4 Response (handle Topics correctly)
+	return c.write(func(w io.Writer) error {
+		return mqtt.WriteSuback(w, p.PacketID, rc)
+	})
 }
 
 func (b *Broker) handleUnsubscribe(c *Client, p *mqtt.Unsubscribe) error {
