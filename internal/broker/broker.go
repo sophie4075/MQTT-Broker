@@ -136,7 +136,10 @@ func (b *Broker) handleSubscribe(c *Client, p *mqtt.Subscribe) error {
 }
 
 func (b *Broker) handleUnsubscribe(c *Client, p *mqtt.Unsubscribe) error {
-	// TODO: unsubscribe logic + UNSUBACK
-	log.Printf("UNSUBSCRIBE from %q", c.id)
-	return nil
+	for _, t := range p.Topics {
+		b.topics.Unsubscribe(t, c.id)
+	}
+	return c.write(func(w io.Writer) error {
+		return mqtt.WriteAck(w, p.Type(), p.PacketID)
+	})
 }
