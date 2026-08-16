@@ -185,7 +185,7 @@ func decodePublish(header FixedHeader, body []byte) (*Publish, error) {
 		Retain: header.Flags&0x01 == 1,
 	}
 	if pkt.QoS == 3 {
-		return nil, fmt.Errorf("invalid QoS 3 in PUBLISH")
+		return nil, fmt.Errorf("PUBLISH Packet MUST NOT have both QoS bits set to 1")
 	}
 	offset := 0
 

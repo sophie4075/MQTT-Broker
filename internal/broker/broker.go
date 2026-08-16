@@ -1,15 +1,14 @@
 package broker
 
 import (
-	"BA-Broker/internal/topic"
 	"errors"
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"sync"
 
 	"BA-Broker/internal/mqtt"
+	"BA-Broker/internal/topic"
 )
 
 // errClientDisconnect signals an orderly DISCONNECT.
@@ -18,30 +17,19 @@ var errIdentifierRejected = errors.New("identifier rejected")
 
 // Broker owns MQTT state (e.g: clients, topics, subscriptions).
 type Broker struct {
-	mu      sync.RWMutex
-	clients map[string]*Client
-	topics  *topic.Tree
+	mu       sync.RWMutex
+	clients  map[string]*Client
+	topics   *topic.Tree
+	retained map[string]retainedMsg // topic name -> last retained message
 }
 
 func New() *Broker {
 	return &Broker{
 		clients: make(map[string]*Client),
 		topics:  topic.NewTree(),
+		// TODO: eventually retainedMu sync.RWMutex? To avoid one lock covering two unrelated maps
+		retained: make(map[string]retainedMsg),
 	}
-}
-
-// Client represents a connected MQTT client.
-type Client struct {
-	conn    net.Conn
-	id      string
-	writeMu sync.Mutex
-}
-
-// write ensures only one goroutine writes to the connection at a time.
-func (c *Client) write(fn func(io.Writer) error) error {
-	c.writeMu.Lock()
-	defer c.writeMu.Unlock()
-	return fn(c.conn)
 }
 
 // AddClient registers a new client.
@@ -106,40 +94,4 @@ func (b *Broker) HandlePacket(c *Client, pkt mqtt.Packet) error {
 	default:
 		return fmt.Errorf("unexpected packet type %d", pkt.Type())
 	}
-}
-
-func (b *Broker) handlePublish(c *Client, p *mqtt.Publish) error {
-	// TODO: topic routing + QoS handling
-	log.Printf("PUBLISH from %q topic=%q", c.id, p.TopicName)
-	return nil
-}
-
-func (b *Broker) handleSubscribe(c *Client, p *mqtt.Subscribe) error {
-	log.Printf("SUBSCRIBE Received from %q", c.id)
-	// See [MQTT-3.9.3-2]
-	rc := make([]byte, 0, len(p.Topics))
-	for _, t := range p.Topics {
-		err := b.topics.Subscribe(t.Topic, c.id, t.QoS)
-		if err != nil {
-			log.Printf("Error subscribing to topic %q: %v", t.Topic, err)
-			// failure
-			rc = append(rc, 0x80)
-			continue
-		}
-		// 0x00, 0x01, or 0x02
-		rc = append(rc, byte(t.QoS))
-	}
-	// TODO make sure to double check 3.8.4 Response (handle Topics correctly)
-	return c.write(func(w io.Writer) error {
-		return mqtt.WriteSuback(w, p.PacketID, rc)
-	})
-}
-
-func (b *Broker) handleUnsubscribe(c *Client, p *mqtt.Unsubscribe) error {
-	for _, t := range p.Topics {
-		b.topics.Unsubscribe(t, c.id)
-	}
-	return c.write(func(w io.Writer) error {
-		return mqtt.WriteAck(w, p.Type(), p.PacketID)
-	})
 }
