@@ -21,6 +21,7 @@ func (b *Broker) handleSubscribe(c *Client, p *mqtt.Subscribe) error {
 		}
 		// 0x00, 0x01, or 0x02
 		rc = append(rc, byte(t.QoS))
+		b.sendRetained(c, t.Topic, t.QoS) // MQTT-3.3.1-6
 	}
 	// TODO make sure to double check 3.8.4 Response (handle Topics correctly)
 	return c.write(func(w io.Writer) error {

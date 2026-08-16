@@ -1,6 +1,7 @@
 package broker
 
 import (
+	"BA-Broker/internal/topic"
 	"io"
 	"log"
 
@@ -12,6 +13,11 @@ import (
 type retainedMsg struct {
 	payload []byte
 	qos     mqtt.QoS
+}
+
+type retainedPair struct {
+	topicName string
+	msg       retainedMsg
 }
 
 // subscriber is a subscription resolved to its connected Client, ready for
@@ -43,7 +49,7 @@ func (b *Broker) handlePublish(c *Client, p *mqtt.Publish) error {
 	b.storeRetained(p)
 
 	for _, t := range b.resolveSubscriber(p.TopicName) {
-		out := buildOutgoingPublish(p, t.dest, t.qos)
+		out := buildOutgoingPublish(p, t.dest, t.qos, false)
 		b.forward(t.id, t.dest, out)
 	}
 	return nil
@@ -86,14 +92,14 @@ func (b *Broker) resolveSubscriber(topic string) []subscriber {
 	return targets
 }
 
-func buildOutgoingPublish(p *mqtt.Publish, dest *Client, subQoS mqtt.QoS) *mqtt.Publish {
+func buildOutgoingPublish(p *mqtt.Publish, dest *Client, subQoS mqtt.QoS, retain bool) *mqtt.Publish {
 	outQoS := min(p.QoS, subQoS)
 	out := &mqtt.Publish{
 		TopicName: p.TopicName,
 		Payload:   p.Payload,
 		QoS:       outQoS,
 		Dup:       false, // TODO: DUP Tracking
-		Retain:    false,
+		Retain:    retain,
 	}
 	if outQoS > 0 {
 		id := dest.allocPacketID()
@@ -109,4 +115,29 @@ func (b *Broker) forward(id string, dest *Client, out *mqtt.Publish) {
 	}); err != nil {
 		log.Printf("publish to %q failed: %v", id, err)
 	}
+}
+
+func (b *Broker) sendRetained(c *Client, filter string, subQoS mqtt.QoS) {
+	b.mu.RLock()
+	var matches []retainedPair
+	for topicName, msg := range b.retained {
+		if topic.Matches(filter, topicName) {
+			matches = append(matches, retainedPair{topicName, msg})
+		}
+	}
+	b.mu.RUnlock()
+
+	for _, m := range matches {
+		publish := buildOutgoingPublish(
+			&mqtt.Publish{
+				TopicName: m.topicName,
+				Payload:   m.msg.payload,
+				QoS:       m.msg.qos,
+			},
+			c,
+			subQoS,
+			true)
+		b.forward(c.id, c, publish)
+	}
+
 }
