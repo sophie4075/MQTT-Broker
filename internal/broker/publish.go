@@ -56,7 +56,6 @@ func (b *Broker) handlePublish(c *Client, p *mqtt.Publish) error {
 }
 
 // storeRetained applies a PUBLISH's RETAIN flag to the broker's retained-message store
-// TODO MQTT-3.3.1-6
 func (b *Broker) storeRetained(p *mqtt.Publish) {
 	if !p.Retain {
 		return
