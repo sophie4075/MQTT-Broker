@@ -29,6 +29,7 @@ type subscriber struct {
 }
 
 func (b *Broker) handlePublish(c *Client, p *mqtt.Publish) error {
+	deliver := true
 	// see Table 3.4 - Expected Publish Packet response / MQTT-3.3.4-1
 	switch p.QoS {
 	case mqtt.AtLeastOnce:
@@ -38,12 +39,18 @@ func (b *Broker) handlePublish(c *Client, p *mqtt.Publish) error {
 			return err
 		}
 	case mqtt.ExactlyOnce:
+		isNew := c.pendingQoS(*p.PacketID)
 		if err := c.write(func(w io.Writer) error {
 			return mqtt.WriteAck(w, mqtt.PUBREC, *p.PacketID)
 		}); err != nil {
 			return err
 		}
+		deliver = isNew
 		// TODO: QoS 2 handshake
+	}
+
+	if !deliver {
+		return nil
 	}
 
 	b.storeRetained(p)
@@ -56,7 +63,6 @@ func (b *Broker) handlePublish(c *Client, p *mqtt.Publish) error {
 }
 
 // storeRetained applies a PUBLISH's RETAIN flag to the broker's retained-message store
-// TODO MQTT-3.3.1-6
 func (b *Broker) storeRetained(p *mqtt.Publish) {
 	if !p.Retain {
 		return
