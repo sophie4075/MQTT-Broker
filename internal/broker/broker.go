@@ -37,7 +37,10 @@ func (b *Broker) AddClient(c *Client) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	// TODO: if an existing client has this ID, disconnect the old one (MQTT-3.1.4-2).
+	if old, exists := b.clients[c.id]; exists {
+		// TODO add error handling
+		old.conn.Close()
+	}
 	b.clients[c.id] = c
 }
 
