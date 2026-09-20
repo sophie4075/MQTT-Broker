@@ -46,6 +46,9 @@ func (b *Broker) AddClient(c *Client) {
 
 // RemoveClient removes a client if it is still registered under a specific ID.
 func (b *Broker) RemoveClient(c *Client) {
+	for filter := range c.subs {
+		b.topics.Unsubscribe(filter, c.id)
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
