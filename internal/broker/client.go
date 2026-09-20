@@ -13,6 +13,7 @@ type Client struct {
 	writeMu     sync.Mutex
 	nextPktID   uint16
 	pendingQoS2 map[uint16]struct{}
+	subs        map[string]struct{}
 }
 
 // write ensures only one goroutine writes to the connection at a time.
