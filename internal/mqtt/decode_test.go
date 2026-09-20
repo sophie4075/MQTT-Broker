@@ -35,11 +35,7 @@ func TestDecodeConnect(t *testing.T) {
 	raw := buildPacket(
 		byte(CONNECT<<4),
 		body.Bytes())
-	pkt, err := ReadPacket(bytes.NewReader(raw))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
+	pkt := mustDecode(t, raw)
 	conn, ok := pkt.(*Connect)
 	if !ok {
 		t.Fatalf("expected *Connect, got %T", pkt)
@@ -83,10 +79,7 @@ func TestDecodeConnectWithWill(t *testing.T) {
 	raw := buildPacket(
 		byte(CONNECT<<4),
 		body.Bytes())
-	pkt, err := ReadPacket(bytes.NewReader(raw))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	pkt := mustDecode(t, raw)
 
 	conn := pkt.(*Connect)
 	if !conn.Flags.WillFlag {
@@ -112,10 +105,7 @@ func TestDecodePublishQoS0(t *testing.T) {
 	headerByte := byte(PUBLISH << 4)
 	raw := buildPacket(headerByte, body.Bytes())
 
-	pkt, err := ReadPacket(bytes.NewReader(raw))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	pkt := mustDecode(t, raw)
 
 	pub := pkt.(*Publish)
 	if pub.TopicName != "sensor/temp" {
@@ -139,10 +129,7 @@ func TestDecodePublishQoS1(t *testing.T) {
 	headerByte := byte(PUBLISH<<4) | 0x02
 	raw := buildPacket(headerByte, body.Bytes())
 
-	pkt, err := ReadPacket(bytes.NewReader(raw))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	pkt := mustDecode(t, raw)
 
 	pub := pkt.(*Publish)
 	if *pub.PacketID != 10 {
@@ -166,10 +153,7 @@ func TestDecodeSubscribeSingleTopic(t *testing.T) {
 	headerByte := byte(SUBSCRIBE<<4) | 0x02
 	raw := buildPacket(headerByte, body.Bytes())
 
-	pkt, err := ReadPacket(bytes.NewReader(raw))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	pkt := mustDecode(t, raw)
 
 	sub := pkt.(*Subscribe)
 	if sub.PacketID != 1 {
@@ -200,10 +184,7 @@ func TestDecodeSubscribeMultipleTopics(t *testing.T) {
 	headerByte := byte(SUBSCRIBE<<4) | 0x02
 	raw := buildPacket(headerByte, body.Bytes())
 
-	pkt, err := ReadPacket(bytes.NewReader(raw))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	pkt := mustDecode(t, raw)
 
 	sub := pkt.(*Subscribe)
 	if len(sub.Topics) != 3 {
@@ -235,10 +216,7 @@ func TestReadPacketUnsubscribeSingle(t *testing.T) {
 	body.Write([]byte{0x00, 0x03, 'a', '/', 'b'})
 
 	raw := buildPacket(0xA2, body.Bytes())
-	pkt, err := ReadPacket(bytes.NewReader(raw))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	pkt := mustDecode(t, raw)
 
 	unsub, ok := pkt.(*Unsubscribe)
 	if !ok {
@@ -260,10 +238,7 @@ func TestReadPacketUnsubscribeMultiple(t *testing.T) {
 	body.Write([]byte{0x00, 0x05, 'w', 'o', 'r', 'l', 'd'})
 
 	raw := buildPacket(0xA2, body.Bytes())
-	pkt, err := ReadPacket(bytes.NewReader(raw))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	pkt := mustDecode(t, raw)
 
 	unsub := pkt.(*Unsubscribe)
 	if len(unsub.Topics) != 2 {
@@ -292,10 +267,7 @@ func TestReadPacketAckTypes(t *testing.T) {
 			body := []byte{0x00, 0x0A}
 
 			raw := buildPacket(tt.headerByte, body)
-			pkt, err := ReadPacket(bytes.NewReader(raw))
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			pkt := mustDecode(t, raw)
 
 			ack, ok := pkt.(*Ack)
 			if !ok {
@@ -325,10 +297,7 @@ func TestReadPacketHeaderOnly(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			raw := buildPacket(tt.headerByte, []byte{})
-			pkt, err := ReadPacket(bytes.NewReader(raw))
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			pkt := mustDecode(t, raw)
 
 			ack, ok := pkt.(*Ack)
 			if !ok {
@@ -342,4 +311,13 @@ func TestReadPacketHeaderOnly(t *testing.T) {
 			}
 		})
 	}
+}
+
+func mustDecode(t *testing.T, raw []byte) Packet {
+	t.Helper()
+	pkt, err := ReadPacket(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	return pkt
 }
