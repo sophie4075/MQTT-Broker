@@ -83,7 +83,8 @@ func (b *Broker) HandlePacket(c *Client, pkt mqtt.Packet) error {
 
 	case *mqtt.Unsubscribe:
 		return b.handleUnsubscribe(c, p)
-
+	case *mqtt.Ack:
+		return b.handleAck(c, p)
 	case *mqtt.Pingreq:
 		return c.write(mqtt.WritePingresp)
 
