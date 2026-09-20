@@ -32,7 +32,9 @@ func TestDecodeConnect(t *testing.T) {
 	body.Write(mqttString("myuser"))
 	body.Write(mqttString("mypass"))
 
-	raw := buildPacket(CONNECT<<4, body.Bytes())
+	raw := buildPacket(
+		byte(CONNECT<<4),
+		body.Bytes())
 	pkt, err := ReadPacket(bytes.NewReader(raw))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -43,16 +45,16 @@ func TestDecodeConnect(t *testing.T) {
 		t.Fatalf("expected *Connect, got %T", pkt)
 	}
 
-	if conn.Payload.ClientId != "test-client" {
-		t.Errorf("ClientId = %q, want %q", conn.Payload.ClientId, "test-client")
+	if conn.Payload.ClientID != "test-client" {
+		t.Errorf("ClientId = %q, want %q", conn.Payload.ClientID, "test-client")
 	}
-	if conn.Payload.KeepAlive != 60 {
-		t.Errorf("KeepAlive = %d, want 60", conn.Payload.KeepAlive)
+	if conn.KeepAlive != 60 {
+		t.Errorf("KeepAlive = %d, want 60", conn.KeepAlive)
 	}
-	if !conn.Bits.CleanSession {
+	if !conn.Flags.CleanSession {
 		t.Error("CleanSession should be true")
 	}
-	if !conn.Bits.UsernameFlag {
+	if !conn.Flags.UsernameFlag {
 		t.Error("UsernameFlag should be true")
 	}
 	if conn.Payload.Username != "myuser" {
@@ -61,7 +63,7 @@ func TestDecodeConnect(t *testing.T) {
 	if string(conn.Payload.Password) != "mypass" {
 		t.Errorf("Password = %q, want %q", conn.Payload.Password, "mypass")
 	}
-	if conn.Bits.WillFlag {
+	if conn.Flags.WillFlag {
 		t.Error("WillFlag should be false")
 	}
 }
@@ -78,18 +80,20 @@ func TestDecodeConnectWithWill(t *testing.T) {
 	body.Write(mqttString("will/topic"))
 	body.Write(mqttString("goodbye"))
 
-	raw := buildPacket(CONNECT<<4, body.Bytes())
+	raw := buildPacket(
+		byte(CONNECT<<4),
+		body.Bytes())
 	pkt, err := ReadPacket(bytes.NewReader(raw))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	conn := pkt.(*Connect)
-	if !conn.Bits.WillFlag {
+	if !conn.Flags.WillFlag {
 		t.Error("WillFlag should be true")
 	}
-	if conn.Bits.WillQos != 1 {
-		t.Errorf("WillQos = %d, want 1", conn.Bits.WillQos)
+	if conn.Flags.WillQoS != 1 {
+		t.Errorf("WillQos = %d, want 1", conn.Flags.WillQoS)
 	}
 	if conn.Payload.WillTopic != "will/topic" {
 		t.Errorf("WillTopic = %q, want %q", conn.Payload.WillTopic, "will/topic")
@@ -120,7 +124,7 @@ func TestDecodePublishQoS0(t *testing.T) {
 	if string(pub.Payload) != "22.5" {
 		t.Errorf("Payload = %q, want %q", pub.Payload, "22.5")
 	}
-	if pub.PacketID != 0 {
+	if pub.PacketID != nil {
 		t.Errorf("PacketID = %d, want 0 for QoS 0", pub.PacketID)
 	}
 }
@@ -141,7 +145,7 @@ func TestDecodePublishQoS1(t *testing.T) {
 	}
 
 	pub := pkt.(*Publish)
-	if pub.PacketID != 10 {
+	if *pub.PacketID != 10 {
 		t.Errorf("PacketID = %d, want 10", pub.PacketID)
 	}
 	if pub.TopicName != "home/light" {
@@ -177,8 +181,8 @@ func TestDecodeSubscribeSingleTopic(t *testing.T) {
 	if sub.Topics[0].Topic != "home/temp" {
 		t.Errorf("Topic = %q, want %q", sub.Topics[0].Topic, "home/temp")
 	}
-	if sub.Topics[0].Qos != 1 {
-		t.Errorf("Qos = %d, want 1", sub.Topics[0].Qos)
+	if sub.Topics[0].QoS != 1 {
+		t.Errorf("Qos = %d, want 1", sub.Topics[0].QoS)
 	}
 }
 
@@ -208,7 +212,7 @@ func TestDecodeSubscribeMultipleTopics(t *testing.T) {
 
 	expected := []struct {
 		topic string
-		qos   byte
+		qos   QoS
 	}{
 		{"a/b", 0},
 		{"c/d", 2},
@@ -218,8 +222,8 @@ func TestDecodeSubscribeMultipleTopics(t *testing.T) {
 		if sub.Topics[i].Topic != e.topic {
 			t.Errorf("topic[%d] = %q, want %q", i, sub.Topics[i].Topic, e.topic)
 		}
-		if sub.Topics[i].Qos != e.qos {
-			t.Errorf("qos[%d] = %d, want %d", i, sub.Topics[i].Qos, e.qos)
+		if sub.Topics[i].QoS != e.qos {
+			t.Errorf("qos[%d] = %d, want %d", i, sub.Topics[i].QoS, e.qos)
 		}
 	}
 }
@@ -274,7 +278,7 @@ func TestReadPacketAckTypes(t *testing.T) {
 	tests := []struct {
 		name       string
 		headerByte byte
-		wantType   byte
+		wantType   PacketType
 	}{
 		{"PUBACK", 0x40, PUBACK},
 		{"PUBREC", 0x50, PUBREC},
@@ -311,7 +315,7 @@ func TestReadPacketHeaderOnly(t *testing.T) {
 	tests := []struct {
 		name       string
 		headerByte byte
-		wantType   byte
+		wantType   PacketType
 	}{
 		{"PINGREQ", 0xC0, PINGREQ},
 		{"PINGRESP", 0xD0, PINGRESP},
