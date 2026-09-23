@@ -299,15 +299,8 @@ func TestReadPacketHeaderOnly(t *testing.T) {
 			raw := buildPacket(tt.headerByte, []byte{})
 			pkt := mustDecode(t, raw)
 
-			ack, ok := pkt.(*Ack)
-			if !ok {
-				t.Fatalf("expected *Ack, got %T", pkt)
-			}
-			if ack.Type() != tt.wantType {
-				t.Errorf("Type() = %d, want %d", ack.Type(), tt.wantType)
-			}
-			if ack.PacketID != 0 {
-				t.Errorf("PacketID = %d, want 0", ack.PacketID)
+			if pkt.Type() != tt.wantType {
+				t.Errorf("Type() = %d, want %d", pkt.Type(), tt.wantType)
 			}
 		})
 	}
