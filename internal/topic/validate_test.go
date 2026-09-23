@@ -26,3 +26,28 @@ func TestValidateFilter(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateMatches(t *testing.T) {
+	tests := []struct {
+		filter    string
+		topicName string
+		match     bool
+	}{
+		{filter: "a/b/c", topicName: "a/b/c", match: true},
+		{filter: "a/b", topicName: "a/c", match: false},
+		{filter: "a/+/c", topicName: "a/x/c", match: true},
+		{filter: "a/+", topicName: "a/b/c", match: false},
+		{filter: "a/#", topicName: "a/b/c", match: true},
+		{filter: "a/#", topicName: "a", match: true},
+		{filter: "+/x", topicName: "$SYS/x", match: false},
+		{filter: "$SYS/+", topicName: "$SYS/uptime", match: true},
+	}
+	for _, test := range tests {
+		t.Run(test.filter, func(t *testing.T) {
+			match := Matches(test.filter, test.topicName)
+			if match != test.match {
+				t.Errorf("Matches(%q, %q) = %v, want %v", test.filter, test.topicName, match, test.match)
+			}
+		})
+	}
+}
