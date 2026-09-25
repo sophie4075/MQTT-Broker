@@ -109,8 +109,8 @@ func (b *Broker) HandlePacket(c *Client, pkt mqtt.Packet) error {
 		c.cleanSession = p.Flags.CleanSession
 
 		sessionPresent := b.AddClient(c)
-		log.Printf("mqtt: CONNECT id=%q clean=%v keepalive=%d",
-			p.Payload.ClientID, p.Flags.CleanSession, p.KeepAlive)
+		log.Printf("mqtt: CONNECT id=%q clean=%v session_present=%v keepalive=%d",
+			p.Payload.ClientID, p.Flags.CleanSession, sessionPresent, p.KeepAlive)
 		return c.write(func(w io.Writer) error {
 			return mqtt.WriteConnack(w, sessionPresent, 0x00)
 		})
