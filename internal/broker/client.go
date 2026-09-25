@@ -8,12 +8,13 @@ import (
 
 // Client represents a connected MQTT client.
 type Client struct {
-	conn        net.Conn
-	id          string
-	writeMu     sync.Mutex
-	nextPktID   uint16
-	pendingQoS2 map[uint16]struct{}
-	subs        map[string]struct{}
+	conn         net.Conn
+	id           string
+	writeMu      sync.Mutex
+	nextPktID    uint16
+	pendingQoS2  map[uint16]struct{}
+	subs         map[string]struct{}
+	cleanSession bool
 }
 
 // write ensures only one goroutine writes to the connection at a time.
