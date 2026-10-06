@@ -23,10 +23,7 @@ func (b *Broker) handleSubscribe(c *Client, p *mqtt.Subscribe) error {
 		rc = append(rc, byte(t.QoS))
 		b.sendRetained(c, t.Topic, t.QoS) // MQTT-3.3.1-6
 
-		if c.subs == nil {
-			c.subs = make(map[string]struct{})
-		}
-		c.subs[t.Topic] = struct{}{}
+		c.addSub(t.Topic)
 	}
 	// TODO make sure to double check 3.8.4 Response (handle Topics correctly)
 	return c.write(func(w io.Writer) error {
@@ -37,7 +34,7 @@ func (b *Broker) handleSubscribe(c *Client, p *mqtt.Subscribe) error {
 func (b *Broker) handleUnsubscribe(c *Client, p *mqtt.Unsubscribe) error {
 	for _, t := range p.Topics {
 		b.topics.Unsubscribe(t, c.id)
-		delete(c.subs, t)
+		c.removeSub(t)
 	}
 	return c.write(func(w io.Writer) error {
 		return mqtt.WriteAck(w, p.Type(), p.PacketID)

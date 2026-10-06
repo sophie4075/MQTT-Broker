@@ -13,6 +13,7 @@ type Client struct {
 	writeMu      sync.Mutex
 	nextPktID    uint16
 	pendingQoS2  map[uint16]struct{}
+	subsMu       sync.Mutex
 	subs         map[string]struct{}
 	cleanSession bool
 }
@@ -58,4 +59,33 @@ func (c *Client) clearPendingQoS(packetID uint16) {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 	delete(c.pendingQoS2, packetID)
+}
+
+// addSub records that this client is now subscribed to filter
+func (c *Client) addSub(filter string) {
+	c.subsMu.Lock()
+	defer c.subsMu.Unlock()
+	if c.subs == nil {
+		c.subs = make(map[string]struct{})
+	}
+	c.subs[filter] = struct{}{}
+}
+
+// removeSub records that this client is no longer subscribed to filter
+func (c *Client) removeSub(filter string) {
+	c.subsMu.Lock()
+	defer c.subsMu.Unlock()
+	delete(c.subs, filter)
+}
+
+// snapshotSubs returns a copy of this client's currently subscribed filters
+// TODO Check if necessary
+func (c *Client) snapshotSubs() map[string]struct{} {
+	c.subsMu.Lock()
+	defer c.subsMu.Unlock()
+	cp := make(map[string]struct{}, len(c.subs))
+	for f := range c.subs {
+		cp[f] = struct{}{}
+	}
+	return cp
 }

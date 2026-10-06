@@ -46,6 +46,9 @@ func (b *Broker) AddClient(c *Client) (sessionPresent bool) {
 	if old, exists := b.clients[c.id]; exists {
 		// TODO add error handling
 		old.conn.Close()
+		if !old.cleanSession {
+			b.sessions[c.id] = &session{subs: old.snapshotSubs()}
+		}
 	}
 
 	sess, ok := b.sessions[c.id]
@@ -71,8 +74,9 @@ func (b *Broker) AddClient(c *Client) (sessionPresent bool) {
 
 // RemoveClient removes a client if it is still registered under a specific ID.
 func (b *Broker) RemoveClient(c *Client) {
+	subs := c.snapshotSubs()
 	if c.cleanSession {
-		for filter := range c.subs {
+		for filter := range subs {
 			b.topics.Unsubscribe(filter, c.id)
 		}
 	}
@@ -85,7 +89,7 @@ func (b *Broker) RemoveClient(c *Client) {
 	}
 
 	if !c.cleanSession {
-		b.sessions[c.id] = &session{subs: c.subs}
+		b.sessions[c.id] = &session{subs: subs}
 	}
 	delete(b.clients, c.id)
 }
