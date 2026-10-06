@@ -52,6 +52,7 @@ func (b *Broker) AddClient(c *Client) (sessionPresent bool) {
 
 	if !c.cleanSession && ok {
 		c.subs = sess.subs
+		log.Printf("restored session for %q: subs=%v", c.id, c.subs)
 		b.clients[c.id] = c
 		return true
 	}
