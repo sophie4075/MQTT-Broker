@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"time"
 
 	"BA-Broker/internal/mqtt"
 )
@@ -67,8 +68,19 @@ func (s *Server) handleConn(conn net.Conn) {
 	}()
 
 	for {
+		if client.readTimeout > 0 {
+			if err := conn.SetWriteDeadline(time.Now().Add(client.readTimeout)); err != nil {
+				log.Printf("mqtt set read deadline for %s: %v", addr, err)
+			}
+		}
+
 		pkt, err := mqtt.ReadPacket(r)
 		if err != nil {
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Temporary() {
+				log.Printf("mqtt keep-alive timeout for %s", err)
+				return
+			}
 			if !errors.Is(err, io.EOF) {
 				log.Printf("mqtt read error from %s: %v", addr, err)
 			}

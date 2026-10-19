@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 )
 
 // Client represents a connected MQTT client.
@@ -18,6 +19,7 @@ type Client struct {
 	subs         map[string]struct{}
 	cleanSession bool
 	will         *willMessage
+	readTimeout  time.Duration
 }
 
 type willMessage struct {

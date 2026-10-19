@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"sync"
+	"time"
 
 	"BA-Broker/internal/mqtt"
 	"BA-Broker/internal/topic"
@@ -112,6 +113,10 @@ func (b *Broker) HandlePacket(c *Client, pkt mqtt.Packet) error {
 			return errIdentifierRejected
 		}
 		c.cleanSession = p.Flags.CleanSession
+
+		if p.KeepAlive > 0 {
+			c.readTimeout = time.Duration(p.KeepAlive) * time.Second * 3 / 2
+		}
 
 		if p.Flags.WillFlag {
 			c.will = &willMessage{
