@@ -58,7 +58,11 @@ func (s *Server) handleConn(conn net.Conn) {
 		conn: conn,
 	}
 
+	cleanExit := false
 	defer func() {
+		if !cleanExit {
+			s.Broker.PublishWill(client)
+		}
 		s.Broker.RemoveClient(client)
 	}()
 
@@ -73,6 +77,7 @@ func (s *Server) handleConn(conn net.Conn) {
 
 		if err := s.Broker.HandlePacket(client, pkt); err != nil {
 			if errors.Is(err, errClientDisconnect) {
+				cleanExit = true
 				return
 			}
 			log.Printf("connection closed for %s: %v", addr, err)

@@ -147,3 +147,22 @@ func (b *Broker) sendRetained(c *Client, filter string, subQoS mqtt.QoS) {
 	}
 
 }
+
+func (b *Broker) PublishWill(c *Client) {
+	if c.will == nil {
+		return
+	}
+
+	pub := &mqtt.Publish{
+		TopicName: c.will.topic,
+		Payload:   c.will.payload,
+		QoS:       c.will.qos,
+		Retain:    c.will.retain,
+	}
+	b.storeRetained(pub)
+
+	for _, t := range b.resolveSubscriber(pub.TopicName) {
+		publish := buildOutgoingPublish(pub, t.dest, t.qos, false)
+		b.forward(t.id, t.dest, publish)
+	}
+}

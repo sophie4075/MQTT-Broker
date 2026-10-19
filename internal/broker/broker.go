@@ -113,6 +113,15 @@ func (b *Broker) HandlePacket(c *Client, pkt mqtt.Packet) error {
 		}
 		c.cleanSession = p.Flags.CleanSession
 
+		if p.Flags.WillFlag {
+			c.will = &willMessage{
+				topic:   p.Payload.WillTopic,
+				payload: p.Payload.WillMsg,
+				qos:     p.Flags.WillQoS,
+				retain:  p.Flags.WillRetain,
+			}
+		}
+
 		sessionPresent := b.AddClient(c)
 		log.Printf("mqtt: CONNECT id=%q clean=%v session_present=%v keepalive=%d",
 			p.Payload.ClientID, p.Flags.CleanSession, sessionPresent, p.KeepAlive)

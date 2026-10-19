@@ -1,6 +1,7 @@
 package broker
 
 import (
+	"BA-Broker/internal/mqtt"
 	"io"
 	"net"
 	"sync"
@@ -16,6 +17,14 @@ type Client struct {
 	subsMu       sync.Mutex
 	subs         map[string]struct{}
 	cleanSession bool
+	will         *willMessage
+}
+
+type willMessage struct {
+	topic   string
+	payload []byte
+	qos     mqtt.QoS
+	retain  bool
 }
 
 // write ensures only one goroutine writes to the connection at a time.
