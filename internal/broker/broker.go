@@ -16,8 +16,17 @@ import (
 var errClientDisconnect = errors.New("client disconnected")
 var errIdentifierRejected = errors.New("identifier rejected")
 
+const maxPendingPerSession = 50
+
+type pendingPublish struct {
+	topic   string
+	payload []byte
+	qos     mqtt.QoS
+	retain  bool
+}
 type session struct {
-	subs map[string]struct{}
+	subs       map[string]struct{}
+	pendingPub []pendingPublish
 }
 
 // Broker owns MQTT state (e.g: clients, topics, subscriptions).
@@ -40,7 +49,7 @@ func New() *Broker {
 }
 
 // AddClient registers a new client.
-func (b *Broker) AddClient(c *Client) (sessionPresent bool) {
+func (b *Broker) AddClient(c *Client) (sessionPresent bool, pendingPub []pendingPublish) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -56,9 +65,11 @@ func (b *Broker) AddClient(c *Client) (sessionPresent bool) {
 
 	if !c.cleanSession && ok {
 		c.subs = sess.subs
+		pendingPub = sess.pendingPub
+		sess.pendingPub = nil
 		log.Printf("restored session for %q: subs=%v", c.id, c.subs)
 		b.clients[c.id] = c
-		return true
+		return true, pendingPub
 	}
 
 	if c.cleanSession && ok {
@@ -70,7 +81,7 @@ func (b *Broker) AddClient(c *Client) (sessionPresent bool) {
 
 	c.subs = make(map[string]struct{})
 	b.clients[c.id] = c
-	return false
+	return false, nil
 }
 
 // RemoveClient removes a client if it is still registered under a specific ID.
@@ -127,12 +138,26 @@ func (b *Broker) HandlePacket(c *Client, pkt mqtt.Packet) error {
 			}
 		}
 
-		sessionPresent := b.AddClient(c)
+		sessionPresent, pendingPub := b.AddClient(c)
 		log.Printf("mqtt: CONNECT id=%q clean=%v session_present=%v keepalive=%d",
 			p.Payload.ClientID, p.Flags.CleanSession, sessionPresent, p.KeepAlive)
-		return c.write(func(w io.Writer) error {
+
+		if err := c.write(func(w io.Writer) error {
 			return mqtt.WriteConnack(w, sessionPresent, 0x00)
-		})
+		}); err != nil {
+			return err
+		}
+
+		for _, pub := range pendingPub {
+			publish := buildOutgoingPublish(&mqtt.Publish{
+				TopicName: pub.topic,
+				Payload:   pub.payload,
+				QoS:       pub.qos,
+				Retain:    pub.retain,
+			}, c, pub.qos, pub.retain)
+			b.forward(c.id, c, publish)
+		}
+		return nil
 	case *mqtt.Publish:
 		return b.handlePublish(c, p)
 
@@ -152,5 +177,12 @@ func (b *Broker) HandlePacket(c *Client, pkt mqtt.Packet) error {
 
 	default:
 		return fmt.Errorf("unexpected packet type %d", pkt.Type())
+	}
+}
+
+func (s *session) enqueue(pub pendingPublish) {
+	s.pendingPub = append(s.pendingPub, pub)
+	if len(s.pendingPub) > maxPendingPerSession {
+		s.pendingPub = s.pendingPub[len(s.pendingPub)-maxPendingPerSession:]
 	}
 }

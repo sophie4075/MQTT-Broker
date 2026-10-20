@@ -55,7 +55,7 @@ func (b *Broker) handlePublish(c *Client, p *mqtt.Publish) error {
 
 	b.storeRetained(p)
 
-	for _, t := range b.resolveSubscriber(p.TopicName) {
+	for _, t := range b.resolveSubscriber(p) {
 		out := buildOutgoingPublish(p, t.dest, t.qos, false)
 		b.forward(t.id, t.dest, out)
 	}
@@ -83,16 +83,30 @@ func (b *Broker) storeRetained(p *mqtt.Publish) {
 }
 
 // resolveSubscriber matches subscribers and resolves them to clients
-func (b *Broker) resolveSubscriber(topic string) []subscriber {
-	subs := b.topics.Match(topic)
+func (b *Broker) resolveSubscriber(p *mqtt.Publish) []subscriber {
+	subs := b.topics.Match(p.TopicName)
 
-	b.mu.RLock()
-	defer b.mu.RUnlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
 	targets := make([]subscriber, 0, len(subs))
 	for id, qos := range subs {
 		if dest, ok := b.clients[id]; ok {
 			targets = append(targets, subscriber{id, dest, qos})
+			continue
+		}
+
+		if qos == mqtt.AtMostOnce {
+			continue
+		}
+
+		if sess, ok := b.sessions[id]; ok {
+			sess.enqueue(pendingPublish{
+				topic:   p.TopicName,
+				payload: p.Payload,
+				qos:     qos,
+				retain:  false,
+			})
 		}
 	}
 	return targets
@@ -161,7 +175,7 @@ func (b *Broker) PublishWill(c *Client) {
 	}
 	b.storeRetained(pub)
 
-	for _, t := range b.resolveSubscriber(pub.TopicName) {
+	for _, t := range b.resolveSubscriber(pub) {
 		publish := buildOutgoingPublish(pub, t.dest, t.qos, false)
 		b.forward(t.id, t.dest, publish)
 	}
