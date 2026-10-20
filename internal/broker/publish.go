@@ -46,7 +46,6 @@ func (b *Broker) handlePublish(c *Client, p *mqtt.Publish) error {
 			return err
 		}
 		deliver = isNew
-		// TODO: QoS 2 handshake
 	}
 
 	if !deliver {
