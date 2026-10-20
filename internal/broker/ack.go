@@ -13,8 +13,14 @@ func (b *Broker) handleAck(c *Client, p *mqtt.Ack) error {
 		return c.write(func(w io.Writer) error {
 			return mqtt.WriteAck(w, mqtt.PUBCOMP, p.PacketID)
 		})
+	case mqtt.PUBREC:
+		return c.write(func(w io.Writer) error {
+			return mqtt.WriteAck(w, mqtt.PUBREL, p.PacketID)
+		})
+	case mqtt.PUBACK, mqtt.PUBCOMP:
+		c.clearTracking(p.PacketID)
+		return nil
 	default:
-		// TODO: sender-side QoS handling once outgoing delivery tracks in-flight state.
 		return nil
 	}
 }

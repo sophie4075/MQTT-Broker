@@ -56,7 +56,7 @@ func (b *Broker) handlePublish(c *Client, p *mqtt.Publish) error {
 	b.storeRetained(p)
 
 	for _, t := range b.resolveSubscriber(p) {
-		out := buildOutgoingPublish(p, t.dest, t.qos, false)
+		out := buildOutgoingPublish(p, t.dest, t.qos, false, false)
 		b.forward(t.id, t.dest, out)
 	}
 	return nil
@@ -112,13 +112,13 @@ func (b *Broker) resolveSubscriber(p *mqtt.Publish) []subscriber {
 	return targets
 }
 
-func buildOutgoingPublish(p *mqtt.Publish, dest *Client, subQoS mqtt.QoS, retain bool) *mqtt.Publish {
+func buildOutgoingPublish(p *mqtt.Publish, dest *Client, subQoS mqtt.QoS, retain bool, dup bool) *mqtt.Publish {
 	outQoS := min(p.QoS, subQoS)
 	out := &mqtt.Publish{
 		TopicName: p.TopicName,
 		Payload:   p.Payload,
 		QoS:       outQoS,
-		Dup:       false, // TODO: DUP Tracking
+		Dup:       dup,
 		Retain:    retain,
 	}
 	if outQoS > 0 {
@@ -130,6 +130,14 @@ func buildOutgoingPublish(p *mqtt.Publish, dest *Client, subQoS mqtt.QoS, retain
 
 // forward writes a Publish to a single subscriber.
 func (b *Broker) forward(id string, dest *Client, out *mqtt.Publish) {
+	if out.QoS > mqtt.AtMostOnce && out.PacketID != nil {
+		dest.trackPub(*out.PacketID, pendingPublish{
+			topic:   out.TopicName,
+			payload: out.Payload,
+			qos:     out.QoS,
+			retain:  out.Retain,
+		})
+	}
 	if err := dest.write(func(w io.Writer) error {
 		return mqtt.WritePublish(w, out)
 	}); err != nil {
@@ -156,7 +164,8 @@ func (b *Broker) sendRetained(c *Client, filter string, subQoS mqtt.QoS) {
 			},
 			c,
 			subQoS,
-			true)
+			true,
+			false)
 		b.forward(c.id, c, publish)
 	}
 
@@ -176,7 +185,7 @@ func (b *Broker) PublishWill(c *Client) {
 	b.storeRetained(pub)
 
 	for _, t := range b.resolveSubscriber(pub) {
-		publish := buildOutgoingPublish(pub, t.dest, t.qos, false)
+		publish := buildOutgoingPublish(pub, t.dest, t.qos, false, false)
 		b.forward(t.id, t.dest, publish)
 	}
 }

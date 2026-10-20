@@ -19,14 +19,17 @@ var errIdentifierRejected = errors.New("identifier rejected")
 const maxPendingPerSession = 50
 
 type pendingPublish struct {
-	topic   string
-	payload []byte
-	qos     mqtt.QoS
-	retain  bool
+	topic    string
+	payload  []byte
+	qos      mqtt.QoS
+	retain   bool
+	packetID uint16
+	dup      bool
 }
 type session struct {
 	subs       map[string]struct{}
 	pendingPub []pendingPublish
+	nextPktID  uint16
 }
 
 // Broker owns MQTT state (e.g: clients, topics, subscriptions).
@@ -57,7 +60,16 @@ func (b *Broker) AddClient(c *Client) (sessionPresent bool, pendingPub []pending
 		// TODO add error handling
 		old.conn.Close()
 		if !old.cleanSession {
-			b.sessions[c.id] = &session{subs: old.snapshotSubs()}
+			sess := &session{
+				subs:      old.snapshotSubs(),
+				nextPktID: old.snapshotPktID(),
+			}
+			for id, pub := range old.snapshotPub() {
+				pub.dup = true
+				pub.packetID = id
+				sess.enqueue(pub)
+			}
+			b.sessions[c.id] = sess
 		}
 	}
 
@@ -65,6 +77,7 @@ func (b *Broker) AddClient(c *Client) (sessionPresent bool, pendingPub []pending
 
 	if !c.cleanSession && ok {
 		c.subs = sess.subs
+		c.nextPktID = sess.nextPktID
 		pendingPub = sess.pendingPub
 		sess.pendingPub = nil
 		log.Printf("restored session for %q: subs=%v", c.id, c.subs)
@@ -87,6 +100,9 @@ func (b *Broker) AddClient(c *Client) (sessionPresent bool, pendingPub []pending
 // RemoveClient removes a client if it is still registered under a specific ID.
 func (b *Broker) RemoveClient(c *Client) {
 	subs := c.snapshotSubs()
+	pubs := c.snapshotPub()
+	nextID := c.snapshotPktID()
+
 	if c.cleanSession {
 		for filter := range subs {
 			b.topics.Unsubscribe(filter, c.id)
@@ -101,7 +117,16 @@ func (b *Broker) RemoveClient(c *Client) {
 	}
 
 	if !c.cleanSession {
-		b.sessions[c.id] = &session{subs: subs}
+		sess := &session{
+			subs:      subs,
+			nextPktID: nextID,
+		}
+		for id, pub := range pubs {
+			pub.dup = true
+			pub.packetID = id
+			sess.enqueue(pub)
+		}
+		b.sessions[c.id] = sess
 	}
 	delete(b.clients, c.id)
 }
@@ -149,12 +174,33 @@ func (b *Broker) HandlePacket(c *Client, pkt mqtt.Packet) error {
 		}
 
 		for _, pub := range pendingPub {
-			publish := buildOutgoingPublish(&mqtt.Publish{
+			var publish *mqtt.Publish
+
+			if pub.dup {
+				pid := pub.packetID
+				publish = &mqtt.Publish{
+					TopicName: pub.topic,
+					Payload:   pub.payload,
+					QoS:       pub.qos,
+					Retain:    pub.retain,
+					Dup:       true,
+					PacketID:  &pid,
+				}
+				b.forward(c.id, c, publish)
+				continue
+			}
+
+			publish = buildOutgoingPublish(&mqtt.Publish{
 				TopicName: pub.topic,
 				Payload:   pub.payload,
 				QoS:       pub.qos,
 				Retain:    pub.retain,
-			}, c, pub.qos, pub.retain)
+			}, c, pub.qos, pub.retain, false)
+
+			if pub.dup {
+				pid := pub.packetID
+				publish.PacketID = &pid
+			}
 			b.forward(c.id, c, publish)
 		}
 		return nil

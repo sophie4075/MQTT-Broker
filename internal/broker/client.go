@@ -20,6 +20,8 @@ type Client struct {
 	cleanSession bool
 	will         *willMessage
 	readTimeout  time.Duration
+	outMu        sync.Mutex
+	outPub       map[uint16]pendingPublish
 }
 
 type willMessage struct {
@@ -99,4 +101,33 @@ func (c *Client) snapshotSubs() map[string]struct{} {
 		cp[f] = struct{}{}
 	}
 	return cp
+}
+
+func (c *Client) snapshotPub() map[uint16]pendingPublish {
+	c.outMu.Lock()
+	defer c.outMu.Unlock()
+	out := c.outPub
+	c.outPub = nil
+	return out
+}
+
+func (c *Client) snapshotPktID() uint16 {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	return c.nextPktID
+}
+
+func (c *Client) trackPub(id uint16, pub pendingPublish) {
+	c.outMu.Lock()
+	defer c.outMu.Unlock()
+	if c.outPub == nil {
+		c.outPub = make(map[uint16]pendingPublish)
+	}
+	c.outPub[id] = pub
+}
+
+func (c *Client) clearTracking(id uint16) {
+	c.outMu.Lock()
+	defer c.outMu.Unlock()
+	delete(c.outPub, id)
 }
