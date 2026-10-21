@@ -15,8 +15,10 @@ import (
 // errClientDisconnect signals an orderly DISCONNECT.
 var errClientDisconnect = errors.New("client disconnected")
 var errIdentifierRejected = errors.New("identifier rejected")
+var errUnsupportedProtocol = errors.New("unsupported protocol level")
 
 const maxPendingPerSession = 50
+const SupportedProtocolLevel = 4
 
 type pendingPublish struct {
 	topic    string
@@ -135,8 +137,15 @@ func (b *Broker) RemoveClient(c *Client) {
 func (b *Broker) HandlePacket(c *Client, pkt mqtt.Packet) error {
 	switch p := pkt.(type) {
 	case *mqtt.Connect:
-		// TODO: enforce that CONNECT is the first packet, reject duplicates,
-		// validate/assign the client ID, and track the session.
+		if p.ProtocolLevel != SupportedProtocolLevel {
+			if err := c.write(func(w io.Writer) error {
+				return mqtt.WriteConnack(w, false, 0x01)
+			}); err != nil {
+				return err
+			}
+			log.Printf("Connection Refused, unsupported protocol level %d", p.ProtocolLevel)
+			return errUnsupportedProtocol
+		}
 		c.id = p.Payload.ClientID
 		// see MQTT 3.1.3.1
 		if c.id == "" {

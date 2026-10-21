@@ -135,7 +135,8 @@ func decodeConnect(body []byte) (*Connect, error) {
 	if offset+2 > len(body) {
 		return nil, fmt.Errorf("malformed connect packet")
 	}
-	offset++ // Ignore Protocol Level
+	pkt.ProtocolLevel = body[offset]
+	offset++
 
 	flags := body[offset]
 	offset++

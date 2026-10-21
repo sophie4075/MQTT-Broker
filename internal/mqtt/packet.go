@@ -94,9 +94,10 @@ type ConnectPayload struct {
 
 // Connect Client requests a connection to a Server
 type Connect struct {
-	KeepAlive uint16 // Variable Header
-	Flags     ConnectFlags
-	Payload   ConnectPayload
+	ProtocolLevel byte
+	KeepAlive     uint16 // Variable Header
+	Flags         ConnectFlags
+	Payload       ConnectPayload
 }
 
 // Connack is sent by the network in response to a CONNECT Packet received
