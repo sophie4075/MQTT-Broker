@@ -47,6 +47,13 @@ func (s *Server) ListenAndServe() error {
 
 func (s *Server) handleConn(conn net.Conn) {
 	addr := conn.RemoteAddr()
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("recovered panic for %s: %v", addr, r)
+		}
+	}()
+
 	defer func() {
 		if err := conn.Close(); err != nil {
 			log.Printf("mqtt close %s: %v", addr, err)
@@ -67,6 +74,7 @@ func (s *Server) handleConn(conn net.Conn) {
 		s.Broker.RemoveClient(client)
 	}()
 
+	connected := false
 	for {
 		if client.readTimeout > 0 {
 			if err := conn.SetReadDeadline(time.Now().Add(client.readTimeout)); err != nil {
@@ -85,6 +93,17 @@ func (s *Server) handleConn(conn net.Conn) {
 				log.Printf("mqtt read error from %s: %v", addr, err)
 			}
 			return
+		}
+
+		if _, isConnect := pkt.(*mqtt.Connect); isConnect {
+			if connected {
+				log.Printf("protocol violation: second CONNECT from %s", addr)
+				return // MQTT-3.1.0-2
+			}
+			connected = true
+		} else if !connected {
+			log.Printf("protocol violation: first packet from %s was not CONNECT", addr)
+			return // MQTT-3.1.0-1
 		}
 
 		if err := s.Broker.HandlePacket(client, pkt); err != nil {
