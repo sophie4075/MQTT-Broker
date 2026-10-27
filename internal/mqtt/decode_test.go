@@ -170,6 +170,22 @@ func TestDecodeSubscribeSingleTopic(t *testing.T) {
 	}
 }
 
+func TestDecodeSubscribeQoS(t *testing.T) {
+	var body bytes.Buffer
+
+	body.Write([]byte{0x00, 0x01})
+	body.Write(mqttString("home/temp"))
+	body.WriteByte(3)
+
+	headerByte := byte(SUBSCRIBE<<4) | 0x02
+	raw := buildPacket(headerByte, body.Bytes())
+
+	_, err := ReadPacket(bytes.NewReader(raw))
+	if err == nil {
+		t.Errorf("ReadPacket: expected error for invalid QoS %d, got nil", 3)
+	}
+}
+
 func TestDecodeSubscribeMultipleTopics(t *testing.T) {
 	var body bytes.Buffer
 
