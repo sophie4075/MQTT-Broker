@@ -105,17 +105,17 @@ func (b *Broker) RemoveClient(c *Client) {
 	pubs := c.snapshotPub()
 	nextID := c.snapshotPktID()
 
-	if c.cleanSession {
-		for filter := range subs {
-			b.topics.Unsubscribe(filter, c.id)
-		}
-	}
-
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	if b.clients[c.id] != c {
 		return
+	}
+
+	if c.cleanSession {
+		for filter := range subs {
+			b.topics.Unsubscribe(filter, c.id)
+		}
 	}
 
 	if !c.cleanSession {
