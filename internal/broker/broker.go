@@ -68,9 +68,8 @@ func (b *Broker) AddClient(c *Client) (sessionPresent bool, pendingPub []pending
 				nextPktID:   old.snapshotPktID(),
 				pendingQoS2: old.snapshotPendingQoS2(),
 			}
-			for id, pub := range old.snapshotPub() {
+			for _, pub := range old.snapshotPub() {
 				pub.dup = true
-				pub.packetID = id
 				sess.enqueue(pub)
 			}
 			b.sessions[c.id] = sess
@@ -128,9 +127,8 @@ func (b *Broker) RemoveClient(c *Client) {
 			nextPktID:   nextID,
 			pendingQoS2: pendingQoS2,
 		}
-		for id, pub := range pubs {
+		for _, pub := range pubs {
 			pub.dup = true
-			pub.packetID = id
 			sess.enqueue(pub)
 		}
 		b.sessions[c.id] = sess

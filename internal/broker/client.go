@@ -21,7 +21,7 @@ type Client struct {
 	will         *willMessage
 	readTimeout  time.Duration
 	outMu        sync.Mutex
-	outPub       map[uint16]pendingPublish
+	outPub       []pendingPublish
 }
 
 type willMessage struct {
@@ -103,7 +103,7 @@ func (c *Client) snapshotSubs() map[string]struct{} {
 	return cp
 }
 
-func (c *Client) snapshotPub() map[uint16]pendingPublish {
+func (c *Client) snapshotPub() []pendingPublish {
 	c.outMu.Lock()
 	defer c.outMu.Unlock()
 	out := c.outPub
@@ -129,14 +129,17 @@ func (c *Client) snapshotPendingQoS2() map[uint16]struct{} {
 func (c *Client) trackPub(id uint16, pub pendingPublish) {
 	c.outMu.Lock()
 	defer c.outMu.Unlock()
-	if c.outPub == nil {
-		c.outPub = make(map[uint16]pendingPublish)
-	}
-	c.outPub[id] = pub
+	pub.packetID = id
+	c.outPub = append(c.outPub, pub)
 }
 
 func (c *Client) clearTracking(id uint16) {
 	c.outMu.Lock()
 	defer c.outMu.Unlock()
-	delete(c.outPub, id)
+	for i, p := range c.outPub {
+		if p.packetID == id {
+			c.outPub = append(c.outPub[:i], c.outPub[i+1:]...)
+			return
+		}
+	}
 }
