@@ -11,6 +11,7 @@ func (b *Broker) handleSubscribe(c *Client, p *mqtt.Subscribe) error {
 	log.Printf("SUBSCRIBE Received from %q", c.id)
 	// See [MQTT-3.9.3-2]
 	rc := make([]byte, 0, len(p.Topics))
+	var subscriptions []mqtt.TopicSubscription
 	for _, t := range p.Topics {
 		err := b.topics.Subscribe(t.Topic, c.id, t.QoS)
 		if err != nil {
@@ -21,14 +22,21 @@ func (b *Broker) handleSubscribe(c *Client, p *mqtt.Subscribe) error {
 		}
 		// 0x00, 0x01, or 0x02
 		rc = append(rc, byte(t.QoS))
-		b.sendRetained(c, t.Topic, t.QoS) // MQTT-3.3.1-6
-
 		c.addSub(t.Topic)
+		subscriptions = append(subscriptions, t)
 	}
+
 	// TODO make sure to double check 3.8.4 Response (handle Topics correctly)
-	return c.write(func(w io.Writer) error {
+	if err := c.write(func(w io.Writer) error {
 		return mqtt.WriteSuback(w, p.PacketID, rc)
-	})
+	}); err != nil {
+		return err
+	}
+
+	for _, t := range subscriptions {
+		b.sendRetained(c, t.Topic, t.QoS) // MQTT-3.3.1-6
+	}
+	return nil
 }
 
 func (b *Broker) handleUnsubscribe(c *Client, p *mqtt.Unsubscribe) error {
