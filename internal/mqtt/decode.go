@@ -105,7 +105,6 @@ func ReadPacket(r io.Reader) (Packet, error) {
 
 func decodeConnect(body []byte) (*Connect, error) {
 	var err error
-	var protoLen uint16
 	pkt := &Connect{}
 	offset := 0
 
@@ -124,12 +123,14 @@ func decodeConnect(body []byte) (*Connect, error) {
 		*dst, offset, err = readBytes(body, offset)
 	}
 
-	// Protocol Name: length-prefixed, content is skipped (not stored).
-	protoLen, offset, err = readUint16(body, offset)
+	var protoName string
+	protoName, offset, err = readString(body, offset)
 	if err != nil {
 		return nil, fmt.Errorf("malformed connect: %w", err)
 	}
-	offset += int(protoLen)
+	if protoName != "MQTT" {
+		return nil, fmt.Errorf("invalid protocol name %q, want %q", protoName, "MQTT")
+	}
 
 	// Protocol Level (1 byte) + Connect Flags (1 byte) must still fit.
 	if offset+2 > len(body) {
