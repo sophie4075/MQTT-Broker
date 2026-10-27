@@ -2,6 +2,7 @@ package broker
 
 import (
 	"BA-Broker/internal/mqtt"
+	"io"
 	"net"
 	"sync"
 	"testing"
@@ -160,4 +161,49 @@ func TestReconnectResendOrder(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestHandleSubscribeSendsSubackBeforeRetained(t *testing.T) {
+	conn1, conn2 := net.Pipe()
+	b := New()
+	b.storeRetained(&mqtt.Publish{TopicName: "t", Payload: []byte("hi"), Retain: true})
+
+	c := &Client{id: "x", conn: conn1}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- b.handleSubscribe(c, &mqtt.Subscribe{
+			PacketID: 1,
+			Topics:   []mqtt.TopicSubscription{{Topic: "t", QoS: mqtt.AtMostOnce}},
+		})
+	}()
+
+	first := readPacketType(t, conn2)
+	if first != mqtt.SUBACK {
+		t.Errorf("first packet sent = type %d, want SUBACK (%d); retained messages must not be sent before the SUBACK", first, mqtt.SUBACK)
+	}
+
+	readPacketType(t, conn2) // drain the second packet so the goroutine can finish
+
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readPacketType(t *testing.T, r io.Reader) mqtt.PacketType {
+	t.Helper()
+	headerByte := make([]byte, 1)
+	if _, err := io.ReadFull(r, headerByte); err != nil {
+		t.Fatal(err)
+	}
+	pktType := mqtt.PacketType(headerByte[0] >> 4)
+
+	remaining, err := mqtt.DecodeLength(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.CopyN(io.Discard, r, int64(remaining)); err != nil {
+		t.Fatal(err)
+	}
+	return pktType
 }
