@@ -134,3 +134,30 @@ func TestPendingQoS2PersistsAcrossReconnect(t *testing.T) {
 			"a resend with DUP=1 must not be forwarded to subscribers a second time")
 	}
 }
+
+func TestReconnectResendOrder(t *testing.T) {
+	for trial := 0; trial < 30; trial++ {
+		conn, _ := net.Pipe()
+		old := &Client{id: "x", cleanSession: false, conn: conn}
+
+		topics := []string{"a", "b", "c", "d", "e"}
+		for i, topicName := range topics {
+			old.trackPub(uint16(i+1), pendingPublish{topic: topicName, qos: mqtt.AtLeastOnce})
+		}
+
+		b := New()
+		b.clients["x"] = old
+
+		newC := &Client{id: "x", cleanSession: false}
+		_, pendingPub := b.AddClient(newC)
+
+		if len(pendingPub) != len(topics) {
+			t.Fatalf("trial %d: got %d pending messages, want %d", trial, len(pendingPub), len(topics))
+		}
+		for i, want := range topics {
+			if pendingPub[i].topic != want {
+				t.Fatalf("trial %d: pendingPub[%d].topic = %q, want %q (original send order not preserved)", trial, i, pendingPub[i].topic, want)
+			}
+		}
+	}
+}
