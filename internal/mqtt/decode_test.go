@@ -306,6 +306,25 @@ func TestReadPacketHeaderOnly(t *testing.T) {
 	}
 }
 
+func TestProtocolNameIsValidated(t *testing.T) {
+	var body bytes.Buffer
+
+	body.Write(mqttString("MQIsdp"))
+	body.WriteByte(4)
+	body.WriteByte(0b00000010)
+	body.Write([]byte{0x00, 0x3C})
+	body.Write(mqttString("test-client"))
+
+	raw := buildPacket(
+		byte(CONNECT<<4),
+		body.Bytes())
+
+	_, err := ReadPacket(bytes.NewReader(raw))
+	if err == nil {
+		t.Errorf("ReadPacket: expected error for invalid protocol name %q, got nil", "MQIsdp")
+	}
+}
+
 func mustDecode(t *testing.T, raw []byte) Packet {
 	t.Helper()
 	pkt, err := ReadPacket(bytes.NewReader(raw))
