@@ -111,3 +111,46 @@ func TestTreeWildcardDepth(t *testing.T) {
 		t.Errorf("Match(%q) = %v, want empty (%q is only one level deep)", "sport/tennis/scores", got, filter)
 	}
 }
+
+func TestTreeMultiLevelMatchesParent(t *testing.T) {
+	filter := "sport/#"
+	tree := NewTree()
+	err := tree.Subscribe(filter, "1", mqtt.AtMostOnce)
+	if err != nil {
+		t.Errorf("Subscribe error: %s", err)
+	}
+
+	want := map[string]mqtt.QoS{"1": mqtt.AtMostOnce}
+	if got := tree.Match("sport"); !reflect.DeepEqual(got, want) {
+		t.Errorf("Match(%q) = %v, want %v", "sport", got, want)
+	}
+}
+
+func TestTreeMultiLevelMatchesDeeperLvl(t *testing.T) {
+	filter := "sport/#"
+	tree := NewTree()
+	err := tree.Subscribe(filter, "1", mqtt.AtMostOnce)
+	if err != nil {
+		t.Errorf("Subscribe error: %s", err)
+	}
+
+	want := map[string]mqtt.QoS{"1": mqtt.AtMostOnce}
+	if got := tree.Match("sport/fussball/tor"); !reflect.DeepEqual(got, want) {
+		t.Errorf("Match(%q) = %v, want %v", "sport/fussball/tor", got, want)
+	}
+}
+
+func TestTreeMultiLevelWildcardExcludesDollarPrefix(t *testing.T) {
+	filter := "#"
+	tree := NewTree()
+	err := tree.Subscribe(filter, "1", mqtt.AtMostOnce)
+	if err != nil {
+		t.Errorf("Subscribe error: %s", err)
+	}
+
+	if got := tree.Match("$SYS/uptime"); len(got) != 0 {
+		t.Errorf("Match(%q) = %v, want empty map. Wildcard filters must not match $-prefixed topics",
+			"$SYS/uptime",
+			got)
+	}
+}
