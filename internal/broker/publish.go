@@ -91,11 +91,13 @@ func (b *Broker) resolveSubscriber(p *mqtt.Publish) []subscriber {
 	targets := make([]subscriber, 0, len(subs))
 	for id, qos := range subs {
 		if dest, ok := b.clients[id]; ok {
+			// Client is online
 			targets = append(targets, subscriber{id, dest, qos})
 			continue
 		}
 
-		if qos == mqtt.AtMostOnce {
+		effectiveQoS := min(p.QoS, qos)
+		if effectiveQoS == mqtt.AtMostOnce {
 			continue
 		}
 
@@ -103,7 +105,7 @@ func (b *Broker) resolveSubscriber(p *mqtt.Publish) []subscriber {
 			sess.enqueue(pendingPublish{
 				topic:   p.TopicName,
 				payload: p.Payload,
-				qos:     qos,
+				qos:     effectiveQoS,
 				retain:  false,
 			})
 		}
