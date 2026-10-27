@@ -241,6 +241,10 @@ func decodeSubscribe(body []byte) (*Subscribe, error) {
 		qos := body[offset]
 		offset++
 
+		if qos > 2 {
+			return nil, fmt.Errorf("invalid qos %d", qos)
+		}
+
 		pkt.Topics = append(pkt.Topics, TopicSubscription{
 			Topic: topic,
 			QoS:   QoS(qos),
