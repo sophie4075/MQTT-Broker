@@ -2,6 +2,7 @@ package broker
 
 import (
 	"BA-Broker/internal/mqtt"
+	"net"
 	"sync"
 	"testing"
 )
@@ -75,5 +76,41 @@ func TestResolveSubscriberSkipsEffectiveQoS0(t *testing.T) {
 
 	if got := len(b.sessions["x"].pendingPub); got != 0 {
 		t.Errorf("got %d pending messages, want 0 (effective QoS is 0, nothing to persist)", got)
+	}
+}
+
+// when a client reconnects with the same ID, the OLD connection's cleanup
+// goroutine is still running concurrently and will eventually call
+// RemoveClient. Since the topic tree is keyed by ClientID that late cleanup must not be allowed
+// to remove subscriptions that the NEW connection already re-created under the same ID.
+func TestRemoveClientTakeoverPreservesNewSubscription(t *testing.T) {
+	conn1, _ := net.Pipe()
+	oldC := &Client{id: "x", cleanSession: true, conn: conn1}
+	b := New()
+	b.AddClient(oldC)
+	oldC.addSub("foo/bar")
+	err := b.topics.Subscribe("foo/bar", "x", mqtt.AtMostOnce)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A new Client with the same ID connects and re-subscribes
+	newC := &Client{id: "x", cleanSession: true}
+	b.AddClient(newC)
+	newC.addSub("foo/bar")
+
+	err = b.topics.Subscribe("foo/bar", "x", mqtt.AtMostOnce)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b.RemoveClient(oldC)
+
+	// The new connection's subscription must have survived the old
+	// connection's (late) cleanup.
+	got := b.topics.Match("foo/bar")
+	if _, ok := got["x"]; !ok {
+		t.Errorf("Match(%q) = %v, want subscriber %q still present after old connection's cleanup", "foo/bar", got, "x")
 	}
 }
