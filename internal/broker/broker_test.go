@@ -114,3 +114,23 @@ func TestRemoveClientTakeoverPreservesNewSubscription(t *testing.T) {
 		t.Errorf("Match(%q) = %v, want subscriber %q still present after old connection's cleanup", "foo/bar", got, "x")
 	}
 }
+
+func TestPendingQoS2PersistsAcrossReconnect(t *testing.T) {
+	conn1, _ := net.Pipe()
+	b := New()
+	c := &Client{id: "x", cleanSession: false, conn: conn1}
+	b.AddClient(c)
+	c.pendingQoS(5)
+
+	b.RemoveClient(c)
+
+	//Simulate client reconnected
+	c2 := &Client{id: "x", cleanSession: false}
+	b.AddClient(c2)
+
+	if c2.pendingQoS(5) {
+		t.Errorf("pendingQoS(5) on reconnected client = true, want false: " +
+			"the client already sent this QoS2 message once before disconnecting, " +
+			"a resend with DUP=1 must not be forwarded to subscribers a second time")
+	}
+}
