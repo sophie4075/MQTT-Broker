@@ -33,3 +33,47 @@ func TestResolveSubscriberOfflineQueue(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestResolveSubscriberQueuesMinQoS(t *testing.T) {
+	b := New()
+	err := b.topics.Subscribe("t", "x", mqtt.ExactlyOnce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.sessions["x"] = &session{}
+
+	b.resolveSubscriber(&mqtt.Publish{
+		TopicName: "t",
+		QoS:       mqtt.AtLeastOnce,
+		Payload:   []byte("hi"),
+	})
+
+	pending := b.sessions["x"].pendingPub
+	if len(pending) != 1 {
+		t.Fatalf("got %d pending messages, want 1", len(pending))
+	}
+
+	if pending[0].qos != mqtt.AtLeastOnce {
+		t.Errorf("queued qos = %d, want %d (min(publish QoS, subscription QoS))", pending[0].qos, mqtt.AtLeastOnce)
+	}
+
+}
+
+func TestResolveSubscriberSkipsEffectiveQoS0(t *testing.T) {
+	b := New()
+	err := b.topics.Subscribe("t", "x", mqtt.ExactlyOnce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.sessions["x"] = &session{}
+
+	b.resolveSubscriber(&mqtt.Publish{
+		TopicName: "t",
+		QoS:       mqtt.AtMostOnce,
+		Payload:   []byte("hi"),
+	})
+
+	if got := len(b.sessions["x"].pendingPub); got != 0 {
+		t.Errorf("got %d pending messages, want 0 (effective QoS is 0, nothing to persist)", got)
+	}
+}
