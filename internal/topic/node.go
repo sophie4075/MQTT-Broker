@@ -14,6 +14,9 @@ func (n *node) collect(parts []string, i int, results map[string]mqtt.QoS) {
 	// every level of the topic name is consumed
 	if i == len(parts) {
 		mergeSubs(results, n.subs)
+		if child, ok := n.children["#"]; ok {
+			mergeSubs(results, child.subs)
+		}
 		return
 	}
 	level := parts[i]
