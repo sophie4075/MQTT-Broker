@@ -117,6 +117,15 @@ func (c *Client) snapshotPktID() uint16 {
 	return c.nextPktID
 }
 
+func (c *Client) snapshotPendingQoS2() map[uint16]struct{} {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
+	out := c.pendingQoS2
+	c.pendingQoS2 = nil
+	return out
+}
+
 func (c *Client) trackPub(id uint16, pub pendingPublish) {
 	c.outMu.Lock()
 	defer c.outMu.Unlock()

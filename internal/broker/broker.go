@@ -29,9 +29,10 @@ type pendingPublish struct {
 	dup      bool
 }
 type session struct {
-	subs       map[string]struct{}
-	pendingPub []pendingPublish
-	nextPktID  uint16
+	subs        map[string]struct{}
+	pendingPub  []pendingPublish
+	nextPktID   uint16
+	pendingQoS2 map[uint16]struct{}
 }
 
 // Broker owns MQTT state (e.g: clients, topics, subscriptions).
@@ -63,8 +64,9 @@ func (b *Broker) AddClient(c *Client) (sessionPresent bool, pendingPub []pending
 		old.conn.Close()
 		if !old.cleanSession {
 			sess := &session{
-				subs:      old.snapshotSubs(),
-				nextPktID: old.snapshotPktID(),
+				subs:        old.snapshotSubs(),
+				nextPktID:   old.snapshotPktID(),
+				pendingQoS2: old.snapshotPendingQoS2(),
 			}
 			for id, pub := range old.snapshotPub() {
 				pub.dup = true
@@ -81,6 +83,7 @@ func (b *Broker) AddClient(c *Client) (sessionPresent bool, pendingPub []pending
 		c.subs = sess.subs
 		c.nextPktID = sess.nextPktID
 		pendingPub = sess.pendingPub
+		c.pendingQoS2 = sess.pendingQoS2
 		sess.pendingPub = nil
 		log.Printf("restored session for %q: subs=%v", c.id, c.subs)
 		b.clients[c.id] = c
@@ -104,6 +107,7 @@ func (b *Broker) RemoveClient(c *Client) {
 	subs := c.snapshotSubs()
 	pubs := c.snapshotPub()
 	nextID := c.snapshotPktID()
+	pendingQoS2 := c.snapshotPendingQoS2()
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -120,8 +124,9 @@ func (b *Broker) RemoveClient(c *Client) {
 
 	if !c.cleanSession {
 		sess := &session{
-			subs:      subs,
-			nextPktID: nextID,
+			subs:        subs,
+			nextPktID:   nextID,
+			pendingQoS2: pendingQoS2,
 		}
 		for id, pub := range pubs {
 			pub.dup = true
