@@ -73,6 +73,10 @@ func (b *Broker) AddClient(c *Client) (sessionPresent bool, pendingPub []pending
 				sess.enqueue(pub)
 			}
 			b.sessions[c.id] = sess
+		if old.cleanSession {
+			for filter := range old.snapshotSubs() {
+				s.topics.Unsubscribe(filter, c.id)
+			}
 		}
 	}
 
