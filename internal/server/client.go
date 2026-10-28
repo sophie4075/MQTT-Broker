@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const writeTimeout = 5 * time.Second
+
 // Client represents a connected MQTT client.
 type Client struct {
 	conn         net.Conn
@@ -35,6 +37,9 @@ type willMessage struct {
 func (c *Client) write(fn func(io.Writer) error) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
+	if err := c.conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+		return err
+	}
 	return fn(c.conn)
 }
 
