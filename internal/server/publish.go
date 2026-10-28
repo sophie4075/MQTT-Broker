@@ -143,6 +143,7 @@ func (b *Broker) forward(id string, dest *Client, out *mqtt.Publish) {
 		return mqtt.WritePublish(w, out)
 	}); err != nil {
 		log.Printf("publish to %q failed: %v", id, err)
+		dest.conn.Close()
 	}
 }
 
