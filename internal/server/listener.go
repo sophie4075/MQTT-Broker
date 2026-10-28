@@ -86,6 +86,11 @@ func (s *Server) handleConn(conn net.Conn) {
 		if err != nil {
 			var ne net.Error
 			if errors.As(err, &ne) && ne.Timeout() {
+				if !connected {
+					log.Printf("mqtt timed out waiting for CONNECT from %s", addr)
+					return
+				}
+
 				log.Printf("mqtt keep-alive timeout for %s", addr)
 				return
 			}
@@ -115,4 +120,14 @@ func (s *Server) handleConn(conn net.Conn) {
 			return
 		}
 	}
+}
+
+func readDeadlineFor(connected bool, keepAlive time.Duration) time.Time {
+	if !connected {
+		return time.Now().Add(connectTimeout)
+	}
+	if keepAlive == 0 {
+		return time.Time{}
+	}
+	return time.Now().Add(keepAlive)
 }
