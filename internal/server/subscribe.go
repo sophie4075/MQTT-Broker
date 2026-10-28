@@ -1,4 +1,4 @@
-package broker
+package server
 
 import (
 	"io"
@@ -7,13 +7,13 @@ import (
 	"BA-Broker/internal/mqtt"
 )
 
-func (b *Broker) handleSubscribe(c *Client, p *mqtt.Subscribe) error {
+func (s *Server) handleSubscribe(c *Client, p *mqtt.Subscribe) error {
 	log.Printf("SUBSCRIBE Received from %q", c.id)
 	// See [MQTT-3.9.3-2]
 	rc := make([]byte, 0, len(p.Topics))
 	var subscriptions []mqtt.TopicSubscription
 	for _, t := range p.Topics {
-		err := b.topics.Subscribe(t.Topic, c.id, t.QoS)
+		err := s.topics.Subscribe(t.Topic, c.id, t.QoS)
 		if err != nil {
 			log.Printf("Error subscribing to topic %q: %v", t.Topic, err)
 			// failure
@@ -34,14 +34,14 @@ func (b *Broker) handleSubscribe(c *Client, p *mqtt.Subscribe) error {
 	}
 
 	for _, t := range subscriptions {
-		b.sendRetained(c, t.Topic, t.QoS) // MQTT-3.3.1-6
+		s.sendRetained(c, t.Topic, t.QoS) // MQTT-3.3.1-6
 	}
 	return nil
 }
 
-func (b *Broker) handleUnsubscribe(c *Client, p *mqtt.Unsubscribe) error {
+func (s *Server) handleUnsubscribe(c *Client, p *mqtt.Unsubscribe) error {
 	for _, t := range p.Topics {
-		b.topics.Unsubscribe(t, c.id)
+		s.topics.Unsubscribe(t, c.id)
 		c.removeSub(t)
 	}
 	return c.write(func(w io.Writer) error {

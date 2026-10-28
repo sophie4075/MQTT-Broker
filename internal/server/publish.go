@@ -1,4 +1,4 @@
-package broker
+package server
 
 import (
 	"BA-Broker/internal/topic"
@@ -28,7 +28,7 @@ type subscriber struct {
 	qos  mqtt.QoS
 }
 
-func (b *Broker) handlePublish(c *Client, p *mqtt.Publish) error {
+func (s *Server) handlePublish(c *Client, p *mqtt.Publish) error {
 	deliver := true
 	// see Table 3.4 - Expected Publish Packet response / MQTT-3.3.4-1
 	switch p.QoS {
@@ -52,45 +52,45 @@ func (b *Broker) handlePublish(c *Client, p *mqtt.Publish) error {
 		return nil
 	}
 
-	b.storeRetained(p)
+	s.storeRetained(p)
 
-	for _, t := range b.resolveSubscriber(p) {
+	for _, t := range s.resolveSubscriber(p) {
 		out := buildOutgoingPublish(p, t.dest, t.qos, false, false)
-		b.forward(t.id, t.dest, out)
+		s.forward(t.id, t.dest, out)
 	}
 	return nil
 }
 
-// storeRetained applies a PUBLISH's RETAIN flag to the broker's retained-message store
-func (b *Broker) storeRetained(p *mqtt.Publish) {
+// storeRetained applies a PUBLISH's RETAIN flag to the server's retained-message store
+func (s *Server) storeRetained(p *mqtt.Publish) {
 	if !p.Retain {
 		return
 	}
 
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if len(p.Payload) == 0 {
 		// A zero-byte retained payload clears any
 		// existing retained message and is never stored itself (see MQTT-3.3.1-10/-11).
-		delete(b.retained, p.TopicName)
+		delete(s.retained, p.TopicName)
 		return
 	}
 	// MQTT-3.3.1-5/-7: store as the new retained message, replacing
 	// whatever (if anything) was retained for this topic before.
-	b.retained[p.TopicName] = retainedMsg{payload: p.Payload, qos: p.QoS}
+	s.retained[p.TopicName] = retainedMsg{payload: p.Payload, qos: p.QoS}
 }
 
 // resolveSubscriber matches subscribers and resolves them to clients
-func (b *Broker) resolveSubscriber(p *mqtt.Publish) []subscriber {
-	subs := b.topics.Match(p.TopicName)
+func (s *Server) resolveSubscriber(p *mqtt.Publish) []subscriber {
+	subs := s.topics.Match(p.TopicName)
 
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	targets := make([]subscriber, 0, len(subs))
 	for id, qos := range subs {
-		if dest, ok := b.clients[id]; ok {
+		if dest, ok := s.clients[id]; ok {
 			// Client is online
 			targets = append(targets, subscriber{id, dest, qos})
 			continue
@@ -101,7 +101,7 @@ func (b *Broker) resolveSubscriber(p *mqtt.Publish) []subscriber {
 			continue
 		}
 
-		if sess, ok := b.sessions[id]; ok {
+		if sess, ok := s.sessions[id]; ok {
 			sess.enqueue(pendingPublish{
 				topic:   p.TopicName,
 				payload: p.Payload,
@@ -130,7 +130,7 @@ func buildOutgoingPublish(p *mqtt.Publish, dest *Client, subQoS mqtt.QoS, retain
 }
 
 // forward writes a Publish to a single subscriber.
-func (b *Broker) forward(id string, dest *Client, out *mqtt.Publish) {
+func (s *Server) forward(id string, dest *Client, out *mqtt.Publish) {
 	if out.QoS > mqtt.AtMostOnce && out.PacketID != nil {
 		dest.trackPub(*out.PacketID, pendingPublish{
 			topic:   out.TopicName,
@@ -147,15 +147,15 @@ func (b *Broker) forward(id string, dest *Client, out *mqtt.Publish) {
 	}
 }
 
-func (b *Broker) sendRetained(c *Client, filter string, subQoS mqtt.QoS) {
-	b.mu.RLock()
+func (s *Server) sendRetained(c *Client, filter string, subQoS mqtt.QoS) {
+	s.mu.RLock()
 	var matches []retainedPair
-	for topicName, msg := range b.retained {
+	for topicName, msg := range s.retained {
 		if topic.Matches(filter, topicName) {
 			matches = append(matches, retainedPair{topicName, msg})
 		}
 	}
-	b.mu.RUnlock()
+	s.mu.RUnlock()
 
 	for _, m := range matches {
 		publish := buildOutgoingPublish(
@@ -168,12 +168,12 @@ func (b *Broker) sendRetained(c *Client, filter string, subQoS mqtt.QoS) {
 			subQoS,
 			true,
 			false)
-		b.forward(c.id, c, publish)
+		s.forward(c.id, c, publish)
 	}
 
 }
 
-func (b *Broker) PublishWill(c *Client) {
+func (s *Server) PublishWill(c *Client) {
 	if c.will == nil {
 		return
 	}
@@ -184,10 +184,10 @@ func (b *Broker) PublishWill(c *Client) {
 		QoS:       c.will.qos,
 		Retain:    c.will.retain,
 	}
-	b.storeRetained(pub)
+	s.storeRetained(pub)
 
-	for _, t := range b.resolveSubscriber(pub) {
+	for _, t := range s.resolveSubscriber(pub) {
 		publish := buildOutgoingPublish(pub, t.dest, t.qos, false, false)
-		b.forward(t.id, t.dest, publish)
+		s.forward(t.id, t.dest, publish)
 	}
 }

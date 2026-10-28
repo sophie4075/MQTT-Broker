@@ -1,4 +1,4 @@
-package broker
+package server
 
 import (
 	"BA-Broker/internal/mqtt"
@@ -6,7 +6,7 @@ import (
 )
 
 // handleAck dispatches PUBACK/PUBREC/PUBREL/PUBCOMP
-func (b *Broker) handleAck(c *Client, p *mqtt.Ack) error {
+func (s *Server) handleAck(c *Client, p *mqtt.Ack) error {
 	switch p.Kind {
 	case mqtt.PUBREL:
 		c.clearPendingQoS(p.PacketID)

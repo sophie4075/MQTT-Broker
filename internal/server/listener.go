@@ -1,4 +1,4 @@
-package broker
+package server
 
 import (
 	"bufio"
@@ -11,17 +11,21 @@ import (
 	"BA-Broker/internal/mqtt"
 )
 
-// Server accepts TCP connections and serves each one in its own goroutine. The Go runtime's network poller
+// Listener accepts TCP connections and serves each one in its own goroutine. The Go runtime's network poller
 // multiplexes all these goroutines onto a small number of OS threads.
-type Server struct {
+type Listener struct {
 	Addr   string
-	Broker *Broker
+	Server *Server
 }
 
-// ListenAndServe binds to s.Addr and accepts connections until the listener is
+// connectTimeout bounds how long a connection may sit idle before sending
+// its first CONNECT.
+const connectTimeout = 5 * time.Second
+
+// ListenAndServe binds to l.Addr and accepts connections until the listener is
 // closed. Each accepted connection is handled in its own goroutine.
-func (s *Server) ListenAndServe() error {
-	ln, err := net.Listen("tcp", s.Addr)
+func (l *Listener) ListenAndServe() error {
+	ln, err := net.Listen("tcp", l.Addr)
 	if err != nil {
 		return err
 	}
@@ -30,7 +34,7 @@ func (s *Server) ListenAndServe() error {
 			log.Printf("mqtt listener close: %v", err)
 		}
 	}()
-	log.Printf("mqtt listening on %s", s.Addr)
+	log.Printf("mqtt listening on %s", l.Addr)
 
 	for {
 		conn, err := ln.Accept()
@@ -41,11 +45,11 @@ func (s *Server) ListenAndServe() error {
 			log.Printf("mqtt accept: %v", err)
 			continue // a single failed accept must not kill the server
 		}
-		go s.handleConn(conn)
+		go l.handleConn(conn)
 	}
 }
 
-func (s *Server) handleConn(conn net.Conn) {
+func (l *Listener) handleConn(conn net.Conn) {
 	addr := conn.RemoteAddr()
 
 	defer func() {
@@ -69,17 +73,15 @@ func (s *Server) handleConn(conn net.Conn) {
 	cleanExit := false
 	defer func() {
 		if !cleanExit {
-			s.Broker.PublishWill(client)
+			l.Server.PublishWill(client)
 		}
-		s.Broker.RemoveClient(client)
+		l.Server.RemoveClient(client)
 	}()
 
 	connected := false
 	for {
-		if client.readTimeout > 0 {
-			if err := conn.SetReadDeadline(time.Now().Add(client.readTimeout)); err != nil {
-				log.Printf("mqtt set read deadline for %s: %v", addr, err)
-			}
+		if err := conn.SetReadDeadline(readDeadlineFor(connected, client.readTimeout)); err != nil {
+			log.Printf("mqtt set read deadline for %s: %v", addr, err)
 		}
 
 		pkt, err := mqtt.ReadPacket(r)
@@ -111,7 +113,7 @@ func (s *Server) handleConn(conn net.Conn) {
 			return // MQTT-3.1.0-1
 		}
 
-		if err := s.Broker.HandlePacket(client, pkt); err != nil {
+		if err := l.Server.HandlePacket(client, pkt); err != nil {
 			if errors.Is(err, errClientDisconnect) {
 				cleanExit = true
 				return

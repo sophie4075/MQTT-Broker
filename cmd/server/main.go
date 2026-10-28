@@ -1,17 +1,17 @@
 package main
 
 import (
-	"BA-Broker/internal/broker"
+	"BA-Broker/internal/server"
 	"log"
 )
 
 func main() {
-	srv := &broker.Server{
+	srv := &server.Listener{
 		Addr:   ":1883",
-		Broker: broker.New(),
+		Server: server.New(),
 	}
 
 	if err := srv.ListenAndServe(); err != nil {
-		log.Fatalf("broker stopped: %v", err)
+		log.Fatalf("server stopped: %v", err)
 	}
 }

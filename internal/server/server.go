@@ -1,4 +1,4 @@
-package broker
+package server
 
 import (
 	"errors"
@@ -21,12 +21,13 @@ const maxPendingPerSession = 50
 const SupportedProtocolLevel = 4
 
 type pendingPublish struct {
-	topic    string
-	payload  []byte
-	qos      mqtt.QoS
-	retain   bool
-	packetID uint16
-	dup      bool
+	topic          string
+	payload        []byte
+	qos            mqtt.QoS
+	retain         bool
+	packetID       uint16
+	dup            bool
+	pubrecReceived bool
 }
 type session struct {
 	subs        map[string]struct{}
@@ -35,8 +36,8 @@ type session struct {
 	pendingQoS2 map[uint16]struct{}
 }
 
-// Broker owns MQTT state (e.g: clients, topics, subscriptions).
-type Broker struct {
+// Server owns MQTT state (e.g: clients, topics, subscriptions).
+type Server struct {
 	mu       sync.RWMutex
 	clients  map[string]*Client
 	sessions map[string]*session
@@ -44,8 +45,8 @@ type Broker struct {
 	retained map[string]retainedMsg // topic name -> last retained message
 }
 
-func New() *Broker {
-	return &Broker{
+func New() *Server {
+	return &Server{
 		clients:  make(map[string]*Client),
 		sessions: make(map[string]*session),
 		topics:   topic.NewTree(),
@@ -55,11 +56,11 @@ func New() *Broker {
 }
 
 // AddClient registers a new client.
-func (b *Broker) AddClient(c *Client) (sessionPresent bool, pendingPub []pendingPublish) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+func (s *Server) AddClient(c *Client) (sessionPresent bool, pendingPub []pendingPublish) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	if old, exists := b.clients[c.id]; exists {
+	if old, exists := s.clients[c.id]; exists {
 		// TODO add error handling
 		old.conn.Close()
 		if !old.cleanSession {
@@ -72,7 +73,9 @@ func (b *Broker) AddClient(c *Client) (sessionPresent bool, pendingPub []pending
 				pub.dup = true
 				sess.enqueue(pub)
 			}
-			b.sessions[c.id] = sess
+			s.sessions[c.id] = sess
+		}
+
 		if old.cleanSession {
 			for filter := range old.snapshotSubs() {
 				s.topics.Unsubscribe(filter, c.id)
@@ -80,7 +83,7 @@ func (b *Broker) AddClient(c *Client) (sessionPresent bool, pendingPub []pending
 		}
 	}
 
-	sess, ok := b.sessions[c.id]
+	sess, ok := s.sessions[c.id]
 
 	if !c.cleanSession && ok {
 		c.subs = sess.subs
@@ -89,39 +92,39 @@ func (b *Broker) AddClient(c *Client) (sessionPresent bool, pendingPub []pending
 		c.pendingQoS2 = sess.pendingQoS2
 		sess.pendingPub = nil
 		log.Printf("restored session for %q: subs=%v", c.id, c.subs)
-		b.clients[c.id] = c
+		s.clients[c.id] = c
 		return true, pendingPub
 	}
 
 	if c.cleanSession && ok {
 		for filter := range sess.subs {
-			b.topics.Unsubscribe(filter, c.id)
+			s.topics.Unsubscribe(filter, c.id)
 		}
-		delete(b.sessions, c.id)
+		delete(s.sessions, c.id)
 	}
 
 	c.subs = make(map[string]struct{})
-	b.clients[c.id] = c
+	s.clients[c.id] = c
 	return false, nil
 }
 
 // RemoveClient removes a client if it is still registered under a specific ID.
-func (b *Broker) RemoveClient(c *Client) {
+func (s *Server) RemoveClient(c *Client) {
 	subs := c.snapshotSubs()
 	pubs := c.snapshotPub()
 	nextID := c.snapshotPktID()
 	pendingQoS2 := c.snapshotPendingQoS2()
 
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	if b.clients[c.id] != c {
+	if s.clients[c.id] != c {
 		return
 	}
 
 	if c.cleanSession {
 		for filter := range subs {
-			b.topics.Unsubscribe(filter, c.id)
+			s.topics.Unsubscribe(filter, c.id)
 		}
 	}
 
@@ -135,13 +138,13 @@ func (b *Broker) RemoveClient(c *Client) {
 			pub.dup = true
 			sess.enqueue(pub)
 		}
-		b.sessions[c.id] = sess
+		s.sessions[c.id] = sess
 	}
-	delete(b.clients, c.id)
+	delete(s.clients, c.id)
 }
 
 // HandlePacket dispatches a decoded packet.
-func (b *Broker) HandlePacket(c *Client, pkt mqtt.Packet) error {
+func (s *Server) HandlePacket(c *Client, pkt mqtt.Packet) error {
 	switch p := pkt.(type) {
 	case *mqtt.Connect:
 		if p.ProtocolLevel != SupportedProtocolLevel {
@@ -179,7 +182,7 @@ func (b *Broker) HandlePacket(c *Client, pkt mqtt.Packet) error {
 			}
 		}
 
-		sessionPresent, pendingPub := b.AddClient(c)
+		sessionPresent, pendingPub := s.AddClient(c)
 		log.Printf("mqtt: CONNECT id=%q clean=%v session_present=%v keepalive=%d",
 			p.Payload.ClientID, p.Flags.CleanSession, sessionPresent, p.KeepAlive)
 
@@ -214,7 +217,7 @@ func (b *Broker) HandlePacket(c *Client, pkt mqtt.Packet) error {
 					Dup:       true,
 					PacketID:  &pid,
 				}
-				b.forward(c.id, c, publish)
+				s.forward(c.id, c, publish)
 				continue
 			}
 
@@ -225,23 +228,19 @@ func (b *Broker) HandlePacket(c *Client, pkt mqtt.Packet) error {
 				Retain:    pub.retain,
 			}, c, pub.qos, pub.retain, false)
 
-			if pub.dup {
-				pid := pub.packetID
-				publish.PacketID = &pid
-			}
-			b.forward(c.id, c, publish)
+			s.forward(c.id, c, publish)
 		}
 		return nil
 	case *mqtt.Publish:
-		return b.handlePublish(c, p)
+		return s.handlePublish(c, p)
 
 	case *mqtt.Subscribe:
-		return b.handleSubscribe(c, p)
+		return s.handleSubscribe(c, p)
 
 	case *mqtt.Unsubscribe:
-		return b.handleUnsubscribe(c, p)
+		return s.handleUnsubscribe(c, p)
 	case *mqtt.Ack:
-		return b.handleAck(c, p)
+		return s.handleAck(c, p)
 	case *mqtt.Pingreq:
 		return c.write(mqtt.WritePingresp)
 
