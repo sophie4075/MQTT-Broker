@@ -190,6 +190,18 @@ func (b *Broker) HandlePacket(c *Client, pkt mqtt.Packet) error {
 
 			if pub.dup {
 				pid := pub.packetID
+
+				if pub.pubrecReceived {
+					// in case the client disconnects again before PUBCOMP comes in
+					c.trackPub(pid, pub)
+					if err := c.write(func(w io.Writer) error {
+						return mqtt.WriteAck(w, mqtt.PUBREL, pid)
+					}); err != nil {
+						log.Printf("resend PUBREL to %q failed: %v", c.id, err)
+					}
+					continue
+				}
+
 				publish = &mqtt.Publish{
 					TopicName: pub.topic,
 					Payload:   pub.payload,
