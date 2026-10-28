@@ -74,6 +74,19 @@ func (c *Client) clearPendingQoS(packetID uint16) {
 	delete(c.pendingQoS2, packetID)
 }
 
+// markPubrecReceived marks a tracked outgoing QoS2 delivery as having had
+// its PUBREC acknowledged (MQTT 4.4.0-1).
+func (c *Client) markPubrecReceived(id uint16) {
+	c.outMu.Lock()
+	defer c.outMu.Unlock()
+	for i := range c.outPub {
+		if c.outPub[i].packetID == id {
+			c.outPub[i].pubrecReceived = true
+			return
+		}
+	}
+}
+
 // addSub records that this client is now subscribed to filter
 func (c *Client) addSub(filter string) {
 	c.subsMu.Lock()

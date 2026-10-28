@@ -14,6 +14,7 @@ func (b *Broker) handleAck(c *Client, p *mqtt.Ack) error {
 			return mqtt.WriteAck(w, mqtt.PUBCOMP, p.PacketID)
 		})
 	case mqtt.PUBREC:
+		c.markPubrecReceived(p.PacketID)
 		return c.write(func(w io.Writer) error {
 			return mqtt.WriteAck(w, mqtt.PUBREL, p.PacketID)
 		})
