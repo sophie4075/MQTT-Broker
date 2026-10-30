@@ -4,6 +4,8 @@ import (
 	"BA-Broker/internal/topic"
 	"io"
 	"log"
+	"log/slog"
+	"time"
 
 	"BA-Broker/internal/mqtt"
 )
@@ -29,6 +31,8 @@ type subscriber struct {
 }
 
 func (s *Server) handlePublish(c *Client, p *mqtt.Publish) error {
+	start := time.Now()
+
 	deliver := true
 	// see Table 3.4 - Expected Publish Packet response / MQTT-3.3.4-1
 	switch p.QoS {
@@ -54,10 +58,14 @@ func (s *Server) handlePublish(c *Client, p *mqtt.Publish) error {
 
 	s.storeRetained(p)
 
-	for _, t := range s.resolveSubscriber(p) {
+	targets := s.resolveSubscriber(p)
+	for _, t := range targets {
 		out := buildOutgoingPublish(p, t.dest, t.qos, false, false)
 		s.forward(t.id, t.dest, out)
 	}
+
+	slog.Debug("latency_publish", "topic", p.TopicName, "qos", p.QoS,
+		"subs", len(targets), "broker_ns", time.Since(start).Nanoseconds())
 	return nil
 }
 
@@ -131,6 +139,8 @@ func buildOutgoingPublish(p *mqtt.Publish, dest *Client, subQoS mqtt.QoS, retain
 
 // forward writes a Publish to a single subscriber.
 func (s *Server) forward(id string, dest *Client, out *mqtt.Publish) {
+	start := time.Now()
+
 	if out.QoS > mqtt.AtMostOnce && out.PacketID != nil {
 		dest.trackPub(*out.PacketID, pendingPublish{
 			topic:   out.TopicName,
@@ -144,7 +154,11 @@ func (s *Server) forward(id string, dest *Client, out *mqtt.Publish) {
 	}); err != nil {
 		log.Printf("publish to %q failed: %v", id, err)
 		dest.conn.Close()
+		return
 	}
+
+	slog.Debug("latency_forward", "dest", id, "topic", out.TopicName,
+		"write_ns", time.Since(start).Nanoseconds())
 }
 
 func (s *Server) sendRetained(c *Client, filter string, subQoS mqtt.QoS) {
