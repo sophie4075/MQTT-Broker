@@ -20,7 +20,7 @@ type Listener struct {
 
 // connectTimeout bounds how long a connection may sit idle before sending
 // its first CONNECT.
-const connectTimeout = 5 * time.Second
+const connectTimeout = 30 * time.Second
 
 // ListenAndServe binds to l.Addr and accepts connections until the listener is
 // closed. Each accepted connection is handled in its own goroutine.
