@@ -1,11 +1,3 @@
-// The idea is that a single client connects to the broker,
-// subscribes to a topic, and then publishes messages to that same topic one
-// after another. Because the client has subscribed to its own topic, the
-// broker sends its own messages back to it. The time between "message sent"
-// and "message received back" is the latency.
-//
-// For multiple concurrent clients, this same program is simply started several
-// times at once (one process per client), each with its own client ID and topic.
 package main
 
 import (
@@ -13,67 +5,125 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
+type receivedMessage struct {
+	seq int
+	at  time.Time
+}
+
 func main() {
-	broker := flag.String("broker", "tcp://127.0.0.1:1883", "Adresse des Brokers")
-	topic := flag.String("topic", "bench/latency", "Topic, auf dem getestet wird")
-	clientID := flag.String("id", "latency-test", "Client-ID (muss pro gleichzeitigem Client eindeutig sein)")
-	qos := flag.Int("qos", 1, "QoS-Stufe (0 oder 1)")
-	count := flag.Int("count", 100, "Anzahl der Nachrichten")
-	out := flag.String("out", "", "optionale CSV-Datei für die Latenz jeder einzelnen Nachricht")
+	broker := flag.String("broker", "tcp://127.0.0.1:1883", "broker address")
+	topic := flag.String("topic", "bench/latency", "topic to test against")
+	clientID := flag.String("id", "latency-test", "client ID")
+	qos := flag.Int("qos", 1, "QoS level (0, 1, or 2)")
+	count := flag.Int("count", 100, "number of messages")
+	timeout := flag.Duration("timeout", 5*time.Second, "timeout per message")
+	out := flag.String("out", "", "optional CSV file for the latency of each message")
 	flag.Parse()
 
-	// received is a kind of mailbox between two parts of the program,
-	// soon as a message arrives from the server, the paho library calls the
-	// function below in the background (SetDefaultPublishHandler). That
-	// function writes the receive time into this channel. The main loop
-	// below reads it back out. This is how the two parts of the program
-	// "talk" to each other.
-	received := make(chan time.Time, 1)
+	if *qos < 0 || *qos > 2 {
+		log.Fatal("qos must be between 0 and 2")
+	}
+	if *count <= 0 {
+		log.Fatal("count must be greater than 0")
+	}
+	if *timeout <= 0 {
+		log.Fatal("timeout must be greater than 0")
+	}
+
+	// Channel for messages received from the broker.
+	received := make(chan receivedMessage, 1)
 
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(*broker)
 	opts.SetClientID(*clientID)
 	opts.SetCleanSession(true)
-	opts.SetDefaultPublishHandler(func(_ mqtt.Client, _ mqtt.Message) {
-		received <- time.Now()
+
+	opts.SetDefaultPublishHandler(func(_ mqtt.Client, msg mqtt.Message) {
+		seq, err := strconv.Atoi(string(msg.Payload()))
+		if err != nil {
+			return
+		}
+
+		received <- receivedMessage{
+			seq: seq,
+			at:  time.Now(),
+		}
 	})
 
 	client := mqtt.NewClient(opts)
+
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		log.Fatalf("Verbindung zum Broker fehlgeschlagen: %v", token.Error())
+		log.Fatalf("connecting to broker failed: %v", token.Error())
 	}
 	defer client.Disconnect(250)
 
 	if token := client.Subscribe(*topic, byte(*qos), nil); token.Wait() && token.Error() != nil {
-		log.Fatalf("Abonnieren fehlgeschlagen: %v", token.Error())
+		log.Fatalf("subscribe failed: %v", token.Error())
 	}
 
 	var csvFile *os.File
+
 	if *out != "" {
 		var err error
 		csvFile, err = os.Create(*out)
 		if err != nil {
-			log.Fatalf("CSV-Datei konnte nicht angelegt werden: %v", err)
+			log.Fatalf("could not create CSV file: %v", err)
 		}
 		defer csvFile.Close()
+
 		fmt.Fprintln(csvFile, "seq,latency_ms")
 	}
 
-	var total, minDuration, maxDuration time.Duration
+	var total time.Duration
+	var minDuration, maxDuration time.Duration
+	var elapsed time.Duration
+
 	start := time.Now()
 
 	for seq := 0; seq < *count; seq++ {
 		sendTime := time.Now()
+		deadline := sendTime.Add(*timeout)
 
 		payload := fmt.Sprintf("%d", seq)
 		client.Publish(*topic, byte(*qos), false, payload)
 
-		recvTime := <-received // blocks until our own message comes back
+		var recvTime time.Time
+
+		// Wait for the corresponding message.
+		for {
+			remaining := time.Until(deadline)
+			if remaining <= 0 {
+				log.Fatalf("timed out waiting for message %d", seq)
+			}
+
+			timer := time.NewTimer(remaining)
+
+			select {
+			case msg := <-received:
+				timer.Stop()
+
+				// Ignore messages belonging to previous publications.
+				if msg.seq != seq {
+					continue
+				}
+
+				recvTime = msg.at
+
+			case <-timer.C:
+				log.Fatalf("timed out waiting for message %d", seq)
+			}
+
+			if !recvTime.IsZero() {
+				break
+			}
+		}
+
 		latency := recvTime.Sub(sendTime)
 
 		if seq == 0 || latency < minDuration {
@@ -82,6 +132,7 @@ func main() {
 		if latency > maxDuration {
 			maxDuration = latency
 		}
+
 		total += latency
 
 		if csvFile != nil {
@@ -89,10 +140,10 @@ func main() {
 		}
 	}
 
-	elapsed := time.Since(start)
+	elapsed = time.Since(start)
 	avg := total / time.Duration(*count)
 
 	fmt.Printf("client=%s topic=%s qos=%d count=%d\n", *clientID, *topic, *qos, *count)
-	fmt.Printf("latenz minDuration/avg/maxDuration: %v / %v / %v\n", minDuration, avg, maxDuration)
-	fmt.Printf("durchsatz: %.1f nachrichten/s\n", float64(*count)/elapsed.Seconds())
+	fmt.Printf("latency min/avg/max: %v / %v / %v\n", minDuration, avg, maxDuration)
+	fmt.Printf("sequential throughput: %.1f messages/s\n", float64(*count)/elapsed.Seconds())
 }

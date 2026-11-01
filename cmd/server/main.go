@@ -5,6 +5,8 @@ import (
 	"flag"
 	"log"
 	"log/slog"
+	"net/http"
+	_ "net/http/pprof" // registers /debug/pprof/* handlers on http.DefaultServeMux
 	"os"
 	"runtime"
 	"time"
@@ -16,6 +18,8 @@ func main() {
 		"log server-internal publish/forward latency")
 	memLogInterval := flag.Duration("mem-log", 0,
 		"interval for periodic runtime memory stats logging")
+	pprofAddr := flag.String("pprof-addr", "",
+		"address for the standard library's net/http/pprof debug endpoints, e.g. :6060 (empty disables it)")
 	flag.Parse()
 
 	level := slog.LevelInfo
@@ -26,6 +30,14 @@ func main() {
 
 	if *memLogInterval > 0 {
 		go logMemStats(*memLogInterval)
+	}
+
+	if *pprofAddr != "" {
+		go func() {
+			if err := http.ListenAndServe(*pprofAddr, nil); err != nil {
+				slog.Error("pprof server stopped", "err", err)
+			}
+		}()
 	}
 
 	srv := &server.Listener{
