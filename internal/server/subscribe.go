@@ -45,6 +45,6 @@ func (s *Server) handleUnsubscribe(c *Client, p *mqtt.Unsubscribe) error {
 		c.removeSub(t)
 	}
 	return c.write(func(w io.Writer) error {
-		return mqtt.WriteAck(w, p.Type(), p.PacketID)
+		return mqtt.WriteAck(w, mqtt.UNSUBACK, p.PacketID)
 	})
 }

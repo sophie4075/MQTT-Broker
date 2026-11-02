@@ -278,3 +278,25 @@ func TestReconnectResendsPubrelAfterPubrec(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+func TestHandleUnsubscribeSendsUnsuback(t *testing.T) {
+	conn1, conn2 := net.Pipe()
+	b := New()
+	c := &Client{id: "x", conn: conn1}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- b.handleUnsubscribe(c, &mqtt.Unsubscribe{
+			PacketID: 1,
+			Topics:   []string{"t"},
+		})
+	}()
+
+	got := readPacketType(t, conn2)
+	if got != mqtt.UNSUBACK {
+		t.Errorf("packet sent = type %d, want UNSUBACK (%d)", got, mqtt.UNSUBACK)
+	}
+
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
