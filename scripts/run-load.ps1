@@ -19,6 +19,7 @@ param(
     [string]$OutDir = "results",
     [string]$Exe = ".\latency-test.exe",
     [string]$BrokerName = "",
+    [int]$Repetition = 1,
     [string]$ThroughputLog = "results\throughput_summary.csv"
 )
 
@@ -62,6 +63,7 @@ $row = [PSCustomObject]@{
     qos                  = $Qos
     clients              = $Clients
     count_per_client     = $CountPerClient
+    repetition           = $Repetition
     total_messages       = $totalMessages
     elapsed_s            = $elapsed.TotalSeconds.ToString($invariant)
     throughput_msgs_per_s = $throughput.ToString($invariant)
