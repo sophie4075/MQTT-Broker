@@ -1,0 +1,151 @@
+﻿=== Mosquitto qos=0 clients=1 rep=1 ===
+All 1 clients done after 19,05 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 309545, total unique received: 309545, missing: 0, publish failures: 0
+=== Mosquitto qos=0 clients=10 rep=1 ===
+All 10 clients done after 18,89 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 270102, total unique received: 270102, missing: 0, publish failures: 0
+=== Mosquitto qos=0 clients=50 rep=1 ===
+All 50 clients done after 21,89 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 235080, total unique received: 235080, missing: 0, publish failures: 0
+=== Mosquitto qos=0 clients=100 rep=1 ===
+All 100 clients done after 65,50 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 303728, total unique received: 152956, missing: 150772, publish 
+failures: 0
+=== Mosquitto qos=0 clients=200 rep=1 ===
+All 200 clients done after 74,50 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 170015, total unique received: 127834, missing: 42181, publish 
+failures: 0
+=== Mosquitto qos=1 clients=1 rep=1 ===
+All 1 clients done after 77,80 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 128263, total unique received: 124753, missing: 3510, publish failures: 
+3510
+=== Mosquitto qos=1 clients=10 rep=1 ===
+All 10 clients done after 32,72 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 76013, total unique received: 76013, missing: 0, publish failures: 0
+=== Mosquitto qos=1 clients=50 rep=1 ===
+All 50 clients done after 37,76 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 188118, total unique received: 188118, missing: 0, publish failures: 0
+=== Mosquitto qos=1 clients=100 rep=1 ===
+All 100 clients done after 54,61 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 201793, total unique received: 201793, missing: 0, publish failures: 0
+=== Mosquitto qos=1 clients=200 rep=1 ===
+All 200 clients done after 60,82 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 240228, total unique received: 240228, missing: 0, publish failures: 0
+=== Mosquitto qos=2 clients=1 rep=1 ===
+All 1 clients done after 55,03 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 39526, total unique received: 39526, missing: 0, publish failures: 0
+=== Mosquitto qos=2 clients=10 rep=1 ===
+All 10 clients done after 165,38 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 141577, total unique received: 125084, missing: 16493, publish failures: 
+16549
+=== Mosquitto qos=2 clients=50 rep=1 ===
+All 50 clients done after 260,41 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 246180, total unique received: 223613, missing: 22567, publish failures: 
+22795
+=== Mosquitto qos=2 clients=100 rep=1 ===
+All 100 clients done after 62,10 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 200179, total unique received: 200179, missing: 0, publish failures: 0
+=== Mosquitto qos=2 clients=200 rep=1 ===
+All 200 clients done after 465,54 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 387998, total unique received: 260461, missing: 127537, publish 
+failures: 127584
+=== Mosquitto qos=0 clients=1 rep=2 ===
+All 1 clients done after 19,41 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 285245, total unique received: 285245, missing: 0, publish failures: 0
+=== Mosquitto qos=0 clients=10 rep=2 ===
+All 10 clients done after 24,83 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 337699, total unique received: 337699, missing: 0, publish failures: 0
+=== Mosquitto qos=0 clients=50 rep=2 ===
+All 50 clients done after 23,32 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 223621, total unique received: 223621, missing: 0, publish failures: 0
+=== Mosquitto qos=0 clients=100 rep=2 ===
+All 100 clients done after 32,80 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 186903, total unique received: 186903, missing: 0, publish failures: 0
+=== Mosquitto qos=0 clients=200 rep=2 ===
+All 200 clients done after 56,42 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 322145, total unique received: 278378, missing: 43767, publish 
+failures: 0
+=== Mosquitto qos=1 clients=1 rep=2 ===
+All 1 clients done after 57,30 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 218883, total unique received: 217097, missing: 1786, publish failures: 
+1786
+=== Mosquitto qos=1 clients=10 rep=2 ===
+All 10 clients done after 50,39 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 162227, total unique received: 162227, missing: 0, publish failures: 0
+=== Mosquitto qos=1 clients=50 rep=2 ===
+All 50 clients done after 55,86 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 172676, total unique received: 172352, missing: 324, publish failures: 
+324
+=== Mosquitto qos=1 clients=100 rep=2 ===
+All 100 clients done after 46,28 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 175502, total unique received: 175502, missing: 0, publish failures: 0
+=== Mosquitto qos=1 clients=200 rep=2 ===
+All 200 clients done after 100,71 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 186484, total unique received: 174536, missing: 11948, publish 
+failures: 14158
+=== Mosquitto qos=2 clients=1 rep=2 ===
+All 1 clients done after 48,08 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 37784, total unique received: 37784, missing: 0, publish failures: 0
+=== Mosquitto qos=2 clients=10 rep=2 ===
+All 10 clients done after 265,45 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 199953, total unique received: 98635, missing: 101318, publish failures: 
+101340
+=== Mosquitto qos=2 clients=50 rep=2 ===
+All 50 clients done after 97,69 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 157630, total unique received: 157630, missing: 0, publish failures: 0
+=== Mosquitto qos=2 clients=100 rep=2 ===
+All 100 clients done after 80,04 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 171311, total unique received: 171311, missing: 0, publish failures: 0
+=== Mosquitto qos=2 clients=200 rep=2 ===
+All 200 clients done after 197,63 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 301252, total unique received: 282622, missing: 18630, publish 
+failures: 18668
+=== Mosquitto qos=0 clients=1 rep=3 ===
+All 1 clients done after 18,19 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 296393, total unique received: 296393, missing: 0, publish failures: 0
+=== Mosquitto qos=0 clients=10 rep=3 ===
+All 10 clients done after 23,22 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 378729, total unique received: 378729, missing: 0, publish failures: 0
+=== Mosquitto qos=0 clients=50 rep=3 ===
+All 50 clients done after 21,45 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 194589, total unique received: 194589, missing: 0, publish failures: 0
+=== Mosquitto qos=0 clients=100 rep=3 ===
+All 100 clients done after 42,24 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 296343, total unique received: 295807, missing: 536, publish failures: 0
+=== Mosquitto qos=0 clients=200 rep=3 ===
+All 200 clients done after 64,47 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 371155, total unique received: 371019, missing: 136, publish failures: 3
+=== Mosquitto qos=1 clients=1 rep=3 ===
+All 1 clients done after 47,14 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 325919, total unique received: 325919, missing: 0, publish failures: 0
+=== Mosquitto qos=1 clients=10 rep=3 ===
+All 10 clients done after 19,20 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 119799, total unique received: 119799, missing: 0, publish failures: 0
+=== Mosquitto qos=1 clients=50 rep=3 ===
+All 50 clients done after 31,20 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 171051, total unique received: 171051, missing: 0, publish failures: 0
+=== Mosquitto qos=1 clients=100 rep=3 ===
+All 100 clients done after 37,66 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 145867, total unique received: 145867, missing: 0, publish failures: 0
+=== Mosquitto qos=1 clients=200 rep=3 ===
+All 200 clients done after 77,76 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 246019, total unique received: 245233, missing: 786, publish failures: 
+786
+=== Mosquitto qos=2 clients=1 rep=3 ===
+All 1 clients done after 48,50 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 39002, total unique received: 39002, missing: 0, publish failures: 0
+=== Mosquitto qos=2 clients=10 rep=3 ===
+All 10 clients done after 160,28 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 139550, total unique received: 124230, missing: 15320, publish failures: 
+15338
+=== Mosquitto qos=2 clients=50 rep=3 ===
+All 50 clients done after 130,97 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 133983, total unique received: 133983, missing: 0, publish failures: 0
+=== Mosquitto qos=2 clients=100 rep=3 ===
+All 100 clients done after 91,49 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 96173, total unique received: 95254, missing: 919, publish failures: 936
+=== Mosquitto qos=2 clients=200 rep=3 ===
+All 200 clients done after 141,61 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 248317, total unique received: 241604, missing: 6713, publish failures: 
+10371
+=== Mosquitto flood matrix done ===

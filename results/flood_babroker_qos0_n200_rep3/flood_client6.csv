@@ -1,0 +1,2 @@
+client_id,qos,sent,unique_received,missing,duplicates,publish_failures,send_start_unix_ns,send_done_unix_ns,first_recv_unix_ns,last_recv_unix_ns
+flood-client6,0,1155,1070,85,0,0,1793658650063182300,1793658660181235000,1793658651836943400,1793658671459473700

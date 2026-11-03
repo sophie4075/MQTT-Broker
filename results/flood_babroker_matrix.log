@@ -1,0 +1,159 @@
+﻿=== BA-Broker qos=0 clients=1 rep=1 ===
+All 1 clients done after 15,86 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 258616, total unique received: 258616, missing: 0, publish failures: 0
+=== BA-Broker qos=0 clients=10 rep=1 ===
+All 10 clients done after 20,39 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 326384, total unique received: 326384, missing: 0, publish failures: 0
+=== BA-Broker qos=0 clients=50 rep=1 ===
+All 50 clients done after 23,88 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 228258, total unique received: 228258, missing: 0, publish failures: 0
+=== BA-Broker qos=0 clients=100 rep=1 ===
+All 100 clients done after 30,81 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 223768, total unique received: 223768, missing: 0, publish failures: 0
+=== BA-Broker qos=0 clients=200 rep=1 ===
+All 200 clients done after 63,89 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 354623, total unique received: 344347, missing: 10276, publish 
+failures: 0
+=== BA-Broker qos=1 clients=1 rep=1 ===
+All 1 clients done after 18,43 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 69142, total unique received: 69142, missing: 0, publish failures: 0
+=== BA-Broker qos=1 clients=10 rep=1 ===
+All 10 clients done after 20,96 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 88459, total unique received: 88459, missing: 0, publish failures: 0
+=== BA-Broker qos=1 clients=50 rep=1 ===
+All 50 clients done after 29,63 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 70413, total unique received: 70413, missing: 0, publish failures: 0
+=== BA-Broker qos=1 clients=100 rep=1 ===
+All 100 clients done after 40,56 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 141804, total unique received: 141804, missing: 0, publish failures: 0
+=== BA-Broker qos=1 clients=200 rep=1 ===
+All 200 clients done after 71,77 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 211113, total unique received: 211113, missing: 0, publish failures: 0
+=== BA-Broker qos=2 clients=1 rep=1 ===
+All 1 clients done after 20,06 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 49235, total unique received: 49235, missing: 0, publish failures: 0
+=== BA-Broker qos=2 clients=10 rep=1 ===
+All 10 clients done after 21,60 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 43383, total unique received: 43383, missing: 0, publish failures: 0
+=== BA-Broker qos=2 clients=50 rep=1 ===
+All 50 clients done after 33,05 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 78173, total unique received: 78173, missing: 0, publish failures: 0
+=== BA-Broker qos=2 clients=100 rep=1 ===
+All 100 clients done after 42,30 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 136653, total unique received: 136653, missing: 0, publish failures: 0
+=== BA-Broker qos=2 clients=200 rep=1 ===
+All 200 clients done after 99,61 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 248490, total unique received: 245761, missing: 2729, publish failures: 
+887
+=== BA-Broker qos=2 clients=500 rep=1 ===
+All 500 clients done after 140,96 s wall-clock
+Clients: 500, flood duration: 10s, total sent: 459692, total unique received: 393798, missing: 65894, publish 
+failures: 63067
+=== BA-Broker qos=0 clients=1 rep=2 ===
+All 1 clients done after 15,42 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 211361, total unique received: 211361, missing: 0, publish failures: 0
+=== BA-Broker qos=0 clients=10 rep=2 ===
+All 10 clients done after 20,13 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 315122, total unique received: 315122, missing: 0, publish failures: 0
+=== BA-Broker qos=0 clients=50 rep=2 ===
+All 50 clients done after 28,42 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 338207, total unique received: 338207, missing: 0, publish failures: 0
+=== BA-Broker qos=0 clients=100 rep=2 ===
+All 100 clients done after 36,23 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 333372, total unique received: 333372, missing: 0, publish failures: 0
+=== BA-Broker qos=0 clients=200 rep=2 ===
+All 200 clients done after 65,17 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 368276, total unique received: 366600, missing: 1676, publish failures: 
+0
+=== BA-Broker qos=1 clients=1 rep=2 ===
+All 1 clients done after 18,18 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 98465, total unique received: 98465, missing: 0, publish failures: 0
+=== BA-Broker qos=1 clients=10 rep=2 ===
+All 10 clients done after 31,31 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 101088, total unique received: 101088, missing: 0, publish failures: 0
+=== BA-Broker qos=1 clients=50 rep=2 ===
+All 50 clients done after 29,35 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 107743, total unique received: 107743, missing: 0, publish failures: 0
+=== BA-Broker qos=1 clients=100 rep=2 ===
+All 100 clients done after 39,03 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 204471, total unique received: 204471, missing: 0, publish failures: 0
+=== BA-Broker qos=1 clients=200 rep=2 ===
+All 200 clients done after 61,77 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 244344, total unique received: 243560, missing: 784, publish failures: 
+784
+=== BA-Broker qos=2 clients=1 rep=2 ===
+All 1 clients done after 26,06 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 66249, total unique received: 66249, missing: 0, publish failures: 0
+=== BA-Broker qos=2 clients=10 rep=2 ===
+All 10 clients done after 36,38 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 9022, total unique received: 9022, missing: 0, publish failures: 0
+=== BA-Broker qos=2 clients=50 rep=2 ===
+All 50 clients done after 30,15 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 51364, total unique received: 51364, missing: 0, publish failures: 0
+=== BA-Broker qos=2 clients=100 rep=2 ===
+All 100 clients done after 48,84 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 112718, total unique received: 112718, missing: 0, publish failures: 0
+=== BA-Broker qos=2 clients=200 rep=2 ===
+All 200 clients done after 90,89 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 239282, total unique received: 226201, missing: 13081, publish 
+failures: 19070
+=== BA-Broker qos=2 clients=500 rep=2 ===
+All 500 clients done after 809,04 s wall-clock
+Clients: 500, flood duration: 10s, total sent: 87881004, total unique received: 299779, missing: 87581225, publish 
+failures: 87598596
+=== BA-Broker qos=0 clients=1 rep=3 ===
+All 1 clients done after 17,84 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 184370, total unique received: 184370, missing: 0, publish failures: 0
+=== BA-Broker qos=0 clients=10 rep=3 ===
+All 10 clients done after 29,15 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 75964, total unique received: 75964, missing: 0, publish failures: 0
+=== BA-Broker qos=0 clients=50 rep=3 ===
+All 50 clients done after 43,31 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 104416, total unique received: 74983, missing: 29433, publish failures: 0
+=== BA-Broker qos=0 clients=100 rep=3 ===
+Retry attempt 1 for 100 missing client(s): 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,2
+9,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,
+69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100
+All 100 clients done after 68,39 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 364803, total unique received: 364803, missing: 0, publish failures: 0
+=== BA-Broker qos=0 clients=200 rep=3 ===
+All 200 clients done after 68,92 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 516395, total unique received: 414517, missing: 101878, publish 
+failures: 0
+=== BA-Broker qos=1 clients=1 rep=3 ===
+All 1 clients done after 17,03 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 101089, total unique received: 101089, missing: 0, publish failures: 0
+=== BA-Broker qos=1 clients=10 rep=3 ===
+All 10 clients done after 33,99 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 297994, total unique received: 297994, missing: 0, publish failures: 0
+=== BA-Broker qos=1 clients=50 rep=3 ===
+All 50 clients done after 32,02 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 189124, total unique received: 189124, missing: 0, publish failures: 0
+=== BA-Broker qos=1 clients=100 rep=3 ===
+All 100 clients done after 37,91 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 185148, total unique received: 185148, missing: 0, publish failures: 0
+=== BA-Broker qos=1 clients=200 rep=3 ===
+All 200 clients done after 92,26 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 227528, total unique received: 222680, missing: 4848, publish failures: 
+5765
+=== BA-Broker qos=2 clients=1 rep=3 ===
+All 1 clients done after 18,44 s wall-clock
+Clients: 1, flood duration: 10s, total sent: 80212, total unique received: 80212, missing: 0, publish failures: 0
+=== BA-Broker qos=2 clients=10 rep=3 ===
+All 10 clients done after 18,77 s wall-clock
+Clients: 10, flood duration: 10s, total sent: 61982, total unique received: 61982, missing: 0, publish failures: 0
+=== BA-Broker qos=2 clients=50 rep=3 ===
+All 50 clients done after 32,30 s wall-clock
+Clients: 50, flood duration: 10s, total sent: 132623, total unique received: 132623, missing: 0, publish failures: 0
+=== BA-Broker qos=2 clients=100 rep=3 ===
+All 100 clients done after 45,84 s wall-clock
+Clients: 100, flood duration: 10s, total sent: 118324, total unique received: 118324, missing: 0, publish failures: 0
+=== BA-Broker qos=2 clients=200 rep=3 ===
+All 200 clients done after 82,98 s wall-clock
+Clients: 200, flood duration: 10s, total sent: 225306, total unique received: 216549, missing: 8757, publish failures: 
+1049
+=== BA-Broker qos=2 clients=500 rep=3 ===
+All 500 clients done after 161,14 s wall-clock
+Clients: 500, flood duration: 10s, total sent: 403952, total unique received: 211442, missing: 192510, publish 
+failures: 151459
+=== BA-Broker flood matrix done ===

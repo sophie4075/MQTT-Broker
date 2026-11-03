@@ -27,6 +27,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -48,6 +49,9 @@ func main() {
 			"so it doesn't get miscounted into this run's first stage")
 	settleMax := flag.Duration("settle-max", 60*time.Second,
 		"absolute cap on how long to wait for the quiet period above, in case arrivals never fully stop")
+	arrivalsOut := flag.String("arrivals-out", "", "optional CSV path logging every single arrival's "+
+		"timestamp and stage, so inter-arrival gaps can be analyzed precisely (e.g. to confirm a "+
+		"burst-then-stall pattern instead of eyeballing a device's own console log)")
 	flag.Parse()
 
 	var rates []int
@@ -69,6 +73,13 @@ func main() {
 
 	var lastArrivalNs int64
 
+	type arrival struct {
+		stage int32
+		atNs  int64
+	}
+	var arrivalsMu sync.Mutex
+	var arrivals []arrival
+
 	subOpts := mqtt.NewClientOptions()
 	subOpts.AddBroker(*broker)
 	subOpts.SetClientID(*clientID + "-sub")
@@ -76,10 +87,16 @@ func main() {
 	subOpts.SetProtocolVersion(4)
 	subOpts.SetAutoReconnect(false)
 	subOpts.SetDefaultPublishHandler(func(_ mqtt.Client, _ mqtt.Message) {
-		atomic.StoreInt64(&lastArrivalNs, time.Now().UnixNano())
+		now := time.Now().UnixNano()
+		atomic.StoreInt64(&lastArrivalNs, now)
 		idx := atomic.LoadInt32(&currentStageIdx)
 		if idx >= 0 && int(idx) < len(rates) {
 			atomic.AddInt64(&received[idx], 1)
+		}
+		if *arrivalsOut != "" {
+			arrivalsMu.Lock()
+			arrivals = append(arrivals, arrival{stage: idx, atNs: now})
+			arrivalsMu.Unlock()
 		}
 	})
 
@@ -191,5 +208,24 @@ func main() {
 			fmt.Fprintf(f, "%d,%d,%d,%.2f,%d,%d\n", r.rate, r.sent, r.received, pct, r.startUnixNs, r.endUnixNs)
 		}
 		fmt.Printf("wrote %s\n", *out)
+	}
+
+	if *arrivalsOut != "" {
+		f, err := os.Create(*arrivalsOut)
+		if err != nil {
+			log.Fatalf("could not create arrivals output: %v", err)
+		}
+		defer f.Close()
+		fmt.Fprintln(f, "stage_idx,rate,arrival_unix_ns")
+		arrivalsMu.Lock()
+		for _, a := range arrivals {
+			rate := -1
+			if a.stage >= 0 && int(a.stage) < len(rates) {
+				rate = rates[a.stage]
+			}
+			fmt.Fprintf(f, "%d,%d,%d\n", a.stage, rate, a.atNs)
+		}
+		arrivalsMu.Unlock()
+		fmt.Printf("wrote %s (%d arrivals)\n", *arrivalsOut, len(arrivals))
 	}
 }

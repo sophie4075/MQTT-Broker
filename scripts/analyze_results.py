@@ -58,6 +58,49 @@ def all_runs():
                    stage_folder(broker_key, 2, SPECIAL_CLIENTS, rep), True)
 
 
+def flood_stage_folder(broker_key: str, qos: int, clients: int, rep: int) -> Path:
+    return RESULTS_DIR / f"flood_{broker_key}_qos{qos}_n{clients}_rep{rep}"
+
+
+def all_flood_runs():
+    """Same shape as all_runs(), but for the flood-throughput folders
+    (cmd/throughput-test output). Only yields runs whose folder actually
+    exists, since the flood matrix may legitimately have been run without
+    the 500-client special case (see scripts/run-throughput-matrix.ps1's
+    -SkipSpecialCase)."""
+    for broker_key, broker_name in BROKERS:
+        for rep in REPETITIONS:
+            for qos in QOS_LEVELS:
+                for clients in CLIENT_COUNTS:
+                    folder = flood_stage_folder(broker_key, qos, clients, rep)
+                    if folder.exists():
+                        yield broker_name, qos, clients, rep, folder, False
+            folder = flood_stage_folder(broker_key, 2, SPECIAL_CLIENTS, rep)
+            if folder.exists():
+                yield broker_name, 2, SPECIAL_CLIENTS, rep, folder, True
+
+
+def load_flood_run(folder: Path) -> dict:
+    """Aggregates one flood run's per-client CSVs (see
+    cmd/throughput-test/main.go for the columns) into stage-level totals:
+    summed sent/received/missing/duplicates/publish_failures, and a
+    system-wide window from the earliest send-start to the latest arrival
+    anywhere in the run, which gives the system throughput for that run."""
+    frames = [pd.read_csv(f) for f in folder.glob("flood_client*.csv")]
+    df = pd.concat(frames, ignore_index=True)
+    window_s = (df["last_recv_unix_ns"].max() - df["send_start_unix_ns"].min()) / 1e9
+    total_received = int(df["unique_received"].sum())
+    return {
+        "total_sent": int(df["sent"].sum()),
+        "total_received": total_received,
+        "total_missing": int(df["missing"].sum()),
+        "total_duplicates": int(df["duplicates"].sum()),
+        "total_publish_failures": int(df["publish_failures"].sum()),
+        "window_s": window_s,
+        "throughput_msgs_per_s": total_received / window_s if window_s > 0 else 0.0,
+    }
+
+
 def load_run_latencies(folder: Path) -> pd.Series:
     """Reads every clientN.csv in a folder and returns one combined Series
     of all latency_ms values (across all clients of that single run)."""
@@ -230,7 +273,12 @@ def plot_throughput_vs_clients(throughput_agg: pd.DataFrame, filename: str):
     repetitions. Only covers the scaling stages (1/10/50/100/200 clients) -
     the 500-client special case is reported in the table only, not plotted
     here, for the same reason it is excluded from the latency scaling
-    plots."""
+    plots.
+
+    This is derived from the ping-pong latency-test.exe clients (each one
+    waits for its own echo before sending the next message), so it is
+    capped by per-message round-trip time, not by how fast the broker can
+    actually forward messages."""
     scaling = throughput_agg[throughput_agg["clients"] <= 200]
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
     for ax, qos in zip(axes, QOS_LEVELS):
@@ -242,7 +290,33 @@ def plot_throughput_vs_clients(throughput_agg: pd.DataFrame, filename: str):
         ax.set_ylabel("Throughput (messages/s)")
         ax.set_title(f"QoS {qos}")
         ax.legend()
-    fig.suptitle("System Throughput vs. Number of Concurrent Clients, by Server")
+    fig.suptitle("System Throughput (Round-Trip-Bound) vs. Number of Concurrent Clients, by Server")
+    fig.tight_layout()
+    fig.savefig(PLOTS_DIR / filename, dpi=150)
+    print(f"wrote {PLOTS_DIR / filename}")
+
+
+def plot_flood_throughput_vs_clients(flood_agg: pd.DataFrame, filename: str):
+    """System throughput vs. number of clients, measured with
+    throughput-test.exe: each client publishes as fast as possible without
+    waiting for a reply, so this reflects the broker's actual
+    message-forwarding rate rather than a rate capped by round-trip time
+    (contrast with plot_throughput_vs_clients). Same plot layout
+    otherwise: one subplot per QoS level, one line per broker, shaded band
+    = standard deviation across the 3 repetitions, 500-client special case
+    excluded from the plot (reported in the table only)."""
+    scaling = flood_agg[flood_agg["clients"] <= 200]
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    for ax, qos in zip(axes, QOS_LEVELS):
+        for broker in ("BA-Broker", "Mosquitto"):
+            sub = scaling[(scaling["broker"] == broker) & (scaling["qos"] == qos)].sort_values("clients")
+            band_plot(ax, sub["clients"], sub["throughput_msgs_per_s_mean"], sub["throughput_msgs_per_s_std"],
+                       BROKER_COLORS[broker], broker)
+        ax.set_xlabel("Number of concurrent clients")
+        ax.set_ylabel("Throughput (messages/s)")
+        ax.set_title(f"QoS {qos}")
+        ax.legend()
+    fig.suptitle("System Throughput (Flood Publish) vs. Number of Concurrent Clients, by Server")
     fig.tight_layout()
     fig.savefig(PLOTS_DIR / filename, dpi=150)
     print(f"wrote {PLOTS_DIR / filename}")
@@ -298,6 +372,42 @@ def main():
     throughput_agg.to_csv(RESULTS_DIR / "throughput_summary_aggregated.csv", index=False)
     print(f"wrote {RESULTS_DIR / 'throughput_summary_aggregated.csv'} ({len(throughput_agg)} rows)")
 
+    # --- Flood throughput: computed directly from the flood_*/flood_clientN.csv
+    # folders (cmd/throughput-test output), the same way stats_per_run.csv is
+    # built from the latency folders above - NOT from a live-appended CSV
+    # (see scripts/run-throughput.ps1 for why). Skipped entirely if the
+    # flood matrix hasn't been run yet (no flood_* folders present), so this
+    # script still works for the latency-only data in the meantime. Every
+    # message carries a unique sequence number, so total_received counts
+    # only genuinely, uniquely-arrived messages - loss and publish failures
+    # are tracked explicitly (total_missing/total_publish_failures) rather
+    # than inferred. ---
+    flood_throughput_agg = None
+    flood_rows = [
+        {"broker": broker, "qos": qos, "clients": clients, "repetition": rep,
+         "special_case": is_special, **load_flood_run(folder)}
+        for broker, qos, clients, rep, folder, is_special in all_flood_runs()
+    ]
+    if flood_rows:
+        flood_throughput = pd.DataFrame(flood_rows)
+        flood_throughput.to_csv(RESULTS_DIR / "throughput_flood_summary.csv", index=False)
+        print(f"wrote {RESULTS_DIR / 'throughput_flood_summary.csv'} ({len(flood_throughput)} rows)")
+
+        flood_throughput_agg = aggregate_across_reps(
+            flood_throughput, ["broker", "qos", "clients", "special_case"], ["throughput_msgs_per_s"])
+        # Sum (not mean/std) the loss-related counters across the 3
+        # repetitions, so e.g. the 500-client special case's total loss
+        # rate can be cited directly instead of recomputed from
+        # stats_per_run-style data.
+        loss_sums = (flood_throughput.groupby(["broker", "qos", "clients"])
+                     [["total_sent", "total_received", "total_missing", "total_publish_failures"]]
+                     .sum().reset_index())
+        flood_throughput_agg = flood_throughput_agg.merge(loss_sums, on=["broker", "qos", "clients"], how="left")
+        flood_throughput_agg.to_csv(RESULTS_DIR / "throughput_flood_summary_aggregated.csv", index=False)
+        print(f"wrote {RESULTS_DIR / 'throughput_flood_summary_aggregated.csv'} ({len(flood_throughput_agg)} rows)")
+    else:
+        print("no flood_* folders found - skipping flood throughput aggregation/plot")
+
     scaling_agg = agg[~agg["special_case"]]
 
     # --- Plot 1+2: per-broker QoS comparison, once per broker ---
@@ -309,8 +419,11 @@ def main():
     # --- Plot 3: broker comparison, one subplot per QoS level ---
     plot_broker_comparison(scaling_agg, "versuch3_broker_vergleich.png")
 
-    # --- Plot: system throughput vs. number of clients ---
+    # --- Plot: system throughput vs. number of clients (round-trip-bound,
+    # then flood-publish-based for comparison) ---
     plot_throughput_vs_clients(throughput_agg, "versuch3_throughput_vs_clients.png")
+    if flood_throughput_agg is not None:
+        plot_flood_throughput_vs_clients(flood_throughput_agg, "versuch3_throughput_flood_vs_clients.png")
 
     # --- Plot 4: ECDF, BA-Broker vs. Mosquitto, one subplot per QoS level,
     # single client (clients == 1), pooled across the 3 repetitions. X-axis
